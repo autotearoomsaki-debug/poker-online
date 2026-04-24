@@ -16,7 +16,12 @@ export default function BettingControls({ gameState, me, onAction, isMobile = fa
   const canRaise = me.chips > callAmount && maxRaise >= minRaiseTotal;
 
   const [raiseAmt, setRaiseAmt] = useState(minRaiseTotal);
-  useEffect(() => { setRaiseAmt(Math.max(minRaiseTotal, raiseAmt)); }, [minRaiseTotal]);
+  const [showRaise, setShowRaise] = useState(false);
+
+  useEffect(() => {
+    setRaiseAmt(Math.max(minRaiseTotal, raiseAmt));
+    setShowRaise(false);
+  }, [minRaiseTotal]);
 
   const clampRaise = (v: number) =>
     setRaiseAmt(Math.min(Math.max(Math.round(v), minRaiseTotal), maxRaise));
@@ -24,134 +29,145 @@ export default function BettingControls({ gameState, me, onAction, isMobile = fa
   const presets = [
     { label: '½ポット', val: Math.round(gameState.pot / 2 + gameState.currentBet) },
     { label: 'ポット', val: gameState.pot + gameState.currentBet },
-    { label: '2倍BB', val: gameState.bigBlind * 2 + gameState.currentBet },
+    { label: '2×BB', val: gameState.bigBlind * 2 + gameState.currentBet },
   ].filter(p => p.val >= minRaiseTotal && p.val <= maxRaise);
 
   return (
-    <div style={{ ...styles.container, padding: isMobile ? '12px' : '14px 24px' }}>
-      {/* 情報行 */}
-      <div style={styles.infoRow}>
-        <Chip label="現在のBET" value={`$${gameState.currentBet}`} />
-        <Chip label="POT" value={`$${gameState.pot.toLocaleString()}`} />
-        <Chip label="手持ち" value={`$${me.chips.toLocaleString()}`} />
+    <div style={{ background: 'rgba(0,0,0,0.7)', borderTop: '1px solid rgba(255,255,255,0.08)' }}>
+
+      {/* ── メインアクション行 ── */}
+      <div style={{
+        display: 'flex', gap: 8, padding: isMobile ? '10px 12px' : '12px 20px',
+        alignItems: 'stretch',
+      }}>
+        {/* FOLD */}
+        <button style={btnStyle('#455a64', '#37474f', false)} onClick={() => onAction('fold')}>
+          FOLD
+        </button>
+
+        {/* CHECK or CALL */}
+        {canCheck ? (
+          <button style={btnStyle('#00897b', '#00695c', true)} onClick={() => onAction('check')}>
+            CHECK
+          </button>
+        ) : (
+          <button style={btnStyle('#1565c0', '#0d47a1', true)} onClick={() => onAction('call')}>
+            <span style={{ fontSize: 17, fontWeight: 900 }}>CALL</span>
+            <span style={{ fontSize: 13, fontWeight: 600, opacity: 0.85 }}>
+              +{callAmount.toLocaleString()}
+            </span>
+          </button>
+        )}
+
+        {/* ALL-IN */}
+        <button style={btnStyle('linear-gradient(135deg,#e53935,#b71c1c)', 'transparent', false)}
+          onClick={() => onAction('allin')}>
+          <span style={{ fontSize: 13, fontWeight: 900 }}>ALL IN</span>
+          <span style={{ fontSize: 11, opacity: 0.8 }}>{(me.chips + me.bet).toLocaleString()}</span>
+        </button>
+
+        {/* RAISE toggle */}
+        {canRaise && (
+          <button
+            style={{
+              ...btnStyle(showRaise ? '#4527a0' : '#5e35b1', '#311b92', false),
+              minWidth: isMobile ? 60 : 72,
+            }}
+            onClick={() => setShowRaise(v => !v)}
+          >
+            <span style={{ fontSize: 13 }}>RAISE</span>
+            <span style={{ fontSize: 11, opacity: 0.75 }}>{showRaise ? '▲' : '▼'}</span>
+          </button>
+        )}
       </div>
 
-      {/* ボタン行 */}
-      <div style={{ ...styles.btnRow, flexWrap: isMobile ? 'wrap' : 'nowrap' }}>
-        <ActionBtn color="#636e72" label="フォールド" onClick={() => onAction('fold')} grow />
-        {canCheck
-          ? <ActionBtn color="#00b894" label="チェック" onClick={() => onAction('check')} grow />
-          : <ActionBtn color="#0984e3" label={`コール $${callAmount}`} onClick={() => onAction('call')} grow />
-        }
-        <ActionBtn
-          color="linear-gradient(135deg,#d63031,#e17055)"
-          label={`オールイン $${me.chips + me.bet}`}
-          onClick={() => onAction('allin')}
-          grow
-        />
-      </div>
-
-      {/* レイズセクション */}
-      {canRaise && (
-        <div style={styles.raiseSection}>
+      {/* ── レイズセクション ── */}
+      {showRaise && canRaise && (
+        <div style={{
+          padding: isMobile ? '8px 12px 12px' : '4px 20px 14px',
+          borderTop: '1px solid rgba(255,255,255,0.06)',
+          display: 'flex', flexDirection: 'column', gap: 8,
+        }}>
+          {/* プリセット */}
           {presets.length > 0 && (
-            <div style={styles.presetRow}>
+            <div style={{ display: 'flex', gap: 6 }}>
               {presets.map(p => (
-                <button key={p.label} style={styles.presetBtn} onClick={() => clampRaise(p.val)}>
+                <button
+                  key={p.label}
+                  style={{
+                    flex: 1,
+                    background: 'rgba(94,53,177,0.25)',
+                    border: '1px solid rgba(94,53,177,0.5)',
+                    borderRadius: 8, color: '#ce93d8',
+                    padding: '5px 6px', fontSize: 12, fontWeight: 700, cursor: 'pointer',
+                  }}
+                  onClick={() => clampRaise(p.val)}
+                >
                   {p.label}
                 </button>
               ))}
             </div>
           )}
-          <div style={styles.sliderRow}>
+
+          {/* スライダー + 数値 */}
+          <div style={{ display: 'flex', gap: 10, alignItems: 'center' }}>
             <input
               type="range"
               min={minRaiseTotal} max={maxRaise}
               step={gameState.bigBlind}
               value={raiseAmt}
               onChange={e => clampRaise(Number(e.target.value))}
-              style={{ flex: 1, accentColor: '#6c5ce7', height: 20 }}
+              style={{ flex: 1, accentColor: '#7e57c2', height: 20 }}
             />
             <input
               type="number"
               value={raiseAmt}
               min={minRaiseTotal} max={maxRaise}
               onChange={e => clampRaise(Number(e.target.value))}
-              style={styles.numInput}
+              style={{
+                background: 'rgba(255,255,255,0.1)',
+                border: '1px solid rgba(255,255,255,0.2)',
+                borderRadius: 8, color: '#fff',
+                padding: '6px 8px', width: 88, fontSize: 13,
+              }}
             />
           </div>
-          <ActionBtn
-            color="#6c5ce7"
-            label={`レイズ → $${raiseAmt}`}
-            onClick={() => onAction('raise', raiseAmt)}
-          />
+
+          {/* レイズ実行 */}
+          <button
+            style={{
+              background: 'linear-gradient(135deg,#7e57c2,#5e35b1)',
+              color: '#fff', border: 'none', borderRadius: 10,
+              padding: '11px', fontSize: 15, fontWeight: 800, cursor: 'pointer',
+            }}
+            onClick={() => { onAction('raise', raiseAmt); setShowRaise(false); }}
+          >
+            RAISE → ${raiseAmt.toLocaleString()}
+          </button>
         </div>
       )}
     </div>
   );
 }
 
-function ActionBtn({ color, label, onClick, grow }: {
-  color: string; label: string; onClick: () => void; grow?: boolean;
-}) {
-  return (
-    <button
-      onClick={onClick}
-      style={{
-        background: color, color: '#fff', border: 'none',
-        borderRadius: 8, padding: '12px 16px',
-        fontSize: 14, fontWeight: 700, cursor: 'pointer',
-        flex: grow ? 1 : undefined, minWidth: 80,
-        whiteSpace: 'nowrap',
-      }}
-    >
-      {label}
-    </button>
-  );
+function btnStyle(bg: string, _hover: string, large: boolean): React.CSSProperties {
+  return {
+    background: bg,
+    color: '#fff',
+    border: 'none',
+    borderRadius: 12,
+    padding: large ? '14px 20px' : '10px 14px',
+    fontSize: large ? 16 : 13,
+    fontWeight: 800,
+    cursor: 'pointer',
+    flex: large ? 2 : 1,
+    display: 'flex',
+    flexDirection: 'column',
+    alignItems: 'center',
+    justifyContent: 'center',
+    gap: 2,
+    minWidth: 60,
+    letterSpacing: 0.5,
+    boxShadow: '0 2px 8px rgba(0,0,0,0.35)',
+  };
 }
-
-function Chip({ label, value }: { label: string; value: string }) {
-  return (
-    <div style={{ textAlign: 'center' }}>
-      <div style={{ color: '#666', fontSize: 11 }}>{label}</div>
-      <div style={{ color: '#f0c040', fontWeight: 700, fontSize: 14 }}>{value}</div>
-    </div>
-  );
-}
-
-const styles: Record<string, React.CSSProperties> = {
-  container: {
-    background: 'rgba(0,0,0,0.65)',
-    borderTop: '1px solid rgba(255,255,255,0.08)',
-    display: 'flex', flexDirection: 'column', gap: 10,
-  },
-  infoRow: {
-    display: 'flex', justifyContent: 'center', gap: 28,
-  },
-  btnRow: {
-    display: 'flex', gap: 8, justifyContent: 'center',
-  },
-  raiseSection: {
-    display: 'flex', flexDirection: 'column', gap: 6,
-    maxWidth: 460, margin: '0 auto', width: '100%',
-  },
-  presetRow: {
-    display: 'flex', gap: 6,
-  },
-  presetBtn: {
-    flex: 1,
-    background: 'rgba(108,92,231,0.25)',
-    border: '1px solid rgba(108,92,231,0.5)',
-    borderRadius: 6, color: '#a29bfe',
-    padding: '5px 8px', fontSize: 12, cursor: 'pointer',
-  },
-  sliderRow: {
-    display: 'flex', gap: 8, alignItems: 'center',
-  },
-  numInput: {
-    background: 'rgba(255,255,255,0.1)',
-    border: '1px solid rgba(255,255,255,0.2)',
-    borderRadius: 6, color: '#fff',
-    padding: '6px 8px', width: 88, fontSize: 13,
-  },
-};

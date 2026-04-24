@@ -26,8 +26,8 @@ function getSeatStyle(idx: number, myIdx: number, total: number): React.CSSPrope
   const angle = Math.PI / 2 + offset * 2 * Math.PI;
   return {
     position: 'absolute',
-    left: `${50 + 43 * Math.cos(angle)}%`,
-    top: `${50 + 38 * Math.sin(angle)}%`,
+    left: `${50 + 44 * Math.cos(angle)}%`,
+    top: `${50 + 39 * Math.sin(angle)}%`,
     transform: 'translate(-50%, -50%)',
     zIndex: 2,
   };
@@ -86,14 +86,8 @@ export default function PokerTable({ gameState, myId, onStartGame, onAction, onN
     me?.status === 'active';
   const isHost = gameState.players[0]?.id === myId;
 
-  const handleNext = () => {
-    setShowCelebration(false);
-    onNewHand();
-  };
-  const handleReset = () => {
-    setShowCelebration(false);
-    onResetGame();
-  };
+  const handleNext = () => { setShowCelebration(false); onNewHand(); };
+  const handleReset = () => { setShowCelebration(false); onResetGame(); };
 
   return (
     <div style={styles.wrapper}>
@@ -117,10 +111,10 @@ export default function PokerTable({ gameState, myId, onStartGame, onAction, onN
       {/* ── ヘッダー ── */}
       <div style={styles.header}>
         <div style={{ display: 'flex', alignItems: 'center', gap: 8 }}>
-          <span style={{ color: '#888', fontSize: 12 }}>ルーム</span>
+          <span style={{ color: '#888', fontSize: 11 }}>ROOM</span>
           <strong style={styles.roomId}>{gameState.roomId}</strong>
           <button onClick={copyRoomId} style={styles.copyBtn}>
-            {copied ? '✓ コピー済み' : 'コピー'}
+            {copied ? '✓' : 'コピー'}
           </button>
         </div>
         <div style={styles.phaseBadge}>{PHASE_LABEL[gameState.phase]}</div>
@@ -138,18 +132,40 @@ export default function PokerTable({ gameState, myId, onStartGame, onAction, onN
         : <OvalLayout gameState={gameState} myId={myId} myIdx={myIdx} onStartGame={onStartGame} isHost={isHost} />
       }
 
-      {/* ── 判定中インジケーター ── */}
-      {judging && (
-        <div style={styles.judging}>判定中...</div>
+      {/* ── 自分のホールカード（大きく表示） ── */}
+      {me && me.cards.length > 0 && gameState.phase !== 'waiting' && (
+        <div style={styles.myHoleCards}>
+          <div style={{ display: 'flex', gap: isMobile ? 8 : 12, alignItems: 'center' }}>
+            {me.cards.map((c, i) => (
+              <Card key={i} card={c} animationDelay={i * 150} />
+            ))}
+          </div>
+          {/* ハンド情報をカードの右に配置 */}
+          {me.status !== 'folded' && gameState.myHandDescription && gameState.phase !== 'showdown' && (
+            <div style={styles.myHandLabel}>
+              <div style={{ color: '#888', fontSize: 10, fontWeight: 600, textTransform: 'uppercase', letterSpacing: 0.5 }}>
+                {PHASE_LABEL[gameState.phase] ?? gameState.phase}
+              </div>
+              <div style={{ color: '#f0c040', fontWeight: 800, fontSize: 15 }}>
+                {gameState.myHandDescription}
+              </div>
+            </div>
+          )}
+        </div>
       )}
 
-      {/* ── ハンド情報 ── */}
+      {/* ── ドロー情報 ── */}
       {me && me.status !== 'folded' && (
         <HandInfo
-          handDescription={gameState.myHandDescription}
+          handDescription={undefined}
           draws={gameState.myDraws}
           phase={gameState.phase}
         />
+      )}
+
+      {/* ── 判定中インジケーター ── */}
+      {judging && (
+        <div style={styles.judging}>判定中...</div>
       )}
 
       {/* ── ベット操作 ── */}
@@ -171,6 +187,7 @@ function OvalLayout({ gameState, myId, myIdx, onStartGame, isHost }: {
 }) {
   return (
     <div style={styles.tableWrapper}>
+      {/* Blue felt oval */}
       <div style={styles.tableOval}>
         <Board gameState={gameState} onStartGame={onStartGame} isHost={isHost} />
       </div>
@@ -186,6 +203,7 @@ function OvalLayout({ gameState, myId, myIdx, onStartGame, isHost }: {
             isDealer={idx === gameState.dealerIndex}
             isSB={gameState.phase !== 'waiting' && idx === gameState.smallBlindIndex}
             isBB={gameState.phase !== 'waiting' && idx === gameState.bigBlindIndex}
+            hideCards={player.id === myId}
           />
         </div>
       ))}
@@ -231,6 +249,7 @@ function MobileLayout({ gameState, myId, myIdx, onStartGame, isHost }: {
             isDealer={myIdx === gameState.dealerIndex}
             isSB={gameState.phase !== 'waiting' && myIdx === gameState.smallBlindIndex}
             isBB={gameState.phase !== 'waiting' && myIdx === gameState.bigBlindIndex}
+            hideCards
           />
         </div>
       )}
@@ -244,14 +263,29 @@ function Board({ gameState, onStartGame, isHost, mobile = false }: {
   gameState: GameState; onStartGame: () => void; isHost: boolean; mobile?: boolean;
 }) {
   const style: React.CSSProperties = mobile
-    ? { background: 'rgba(0,100,0,0.35)', border: '2px solid rgba(0,180,0,0.25)', borderRadius: 16, padding: '12px 16px', display: 'flex', flexDirection: 'column', alignItems: 'center', gap: 8 }
-    : { position: 'absolute', top: '50%', left: '50%', transform: 'translate(-50%,-50%)', display: 'flex', flexDirection: 'column', alignItems: 'center', gap: 10, zIndex: 1 };
+    ? {
+        background: 'rgba(21,101,192,0.4)',
+        border: '2px solid rgba(100,160,255,0.2)',
+        borderRadius: 16, padding: '12px 16px',
+        display: 'flex', flexDirection: 'column', alignItems: 'center', gap: 8,
+      }
+    : {
+        position: 'absolute', top: '50%', left: '50%',
+        transform: 'translate(-50%,-50%)',
+        display: 'flex', flexDirection: 'column', alignItems: 'center', gap: 10, zIndex: 1,
+      };
 
   return (
     <div style={style}>
       {gameState.phase !== 'waiting' && (
-        <div style={{ color: '#f0c040', fontWeight: 700, fontSize: mobile ? 15 : 18 }}>
-          POT: ${gameState.pot.toLocaleString()}
+        <div style={{
+          color: '#fff', fontWeight: 800, fontSize: mobile ? 14 : 16,
+          background: 'rgba(0,0,0,0.45)',
+          borderRadius: 20, padding: '3px 16px',
+          border: '1px solid rgba(255,255,255,0.15)',
+          letterSpacing: 0.5,
+        }}>
+          POT <span style={{ color: '#f0c040' }}>${gameState.pot.toLocaleString()}</span>
         </div>
       )}
 
@@ -260,7 +294,7 @@ function Board({ gameState, onStartGame, isHost, mobile = false }: {
           ? gameState.communityCards.map((c, i) => (
               <Card key={i} card={c} small={mobile} animationDelay={i * 150} />
             ))
-          : <p style={{ color: 'rgba(255,255,255,0.2)', fontSize: 12, fontStyle: 'italic' }}>
+          : <p style={{ color: 'rgba(255,255,255,0.18)', fontSize: 12, fontStyle: 'italic' }}>
               コミュニティカード
             </p>
         }
@@ -296,7 +330,7 @@ function Board({ gameState, onStartGame, isHost, mobile = false }: {
 const styles: Record<string, React.CSSProperties> = {
   wrapper: {
     minHeight: '100vh', display: 'flex', flexDirection: 'column',
-    background: 'linear-gradient(135deg, #1a1a2e 0%, #16213e 100%)',
+    background: 'linear-gradient(160deg, #0f1923 0%, #1a2636 50%, #0f1923 100%)',
     overflow: 'hidden',
   },
   loading: {
@@ -312,22 +346,22 @@ const styles: Record<string, React.CSSProperties> = {
   },
   header: {
     display: 'flex', justifyContent: 'space-between', alignItems: 'center',
-    padding: '10px 20px',
-    background: 'rgba(0,0,0,0.4)',
-    borderBottom: '1px solid rgba(255,255,255,0.08)',
-    flexWrap: 'wrap', gap: 8,
+    padding: '8px 16px',
+    background: 'rgba(0,0,0,0.5)',
+    borderBottom: '1px solid rgba(255,255,255,0.07)',
+    flexWrap: 'wrap', gap: 6,
   },
-  roomId: { color: '#f0c040', fontSize: 18, letterSpacing: 2 },
+  roomId: { color: '#f0c040', fontSize: 20, letterSpacing: 4, fontWeight: 900 },
   copyBtn: {
-    background: 'rgba(240,192,64,0.15)',
-    border: '1px solid rgba(240,192,64,0.4)',
+    background: 'rgba(240,192,64,0.12)',
+    border: '1px solid rgba(240,192,64,0.35)',
     borderRadius: 6, color: '#f0c040',
-    padding: '3px 10px', fontSize: 11, cursor: 'pointer',
+    padding: '2px 8px', fontSize: 11, cursor: 'pointer',
   },
   phaseBadge: {
-    background: 'rgba(240,192,64,0.12)', color: '#f0c040',
-    border: '1px solid rgba(240,192,64,0.3)',
-    borderRadius: 6, padding: '4px 12px', fontSize: 13, fontWeight: 700,
+    background: 'rgba(21,101,192,0.35)', color: '#90caf9',
+    border: '1px solid rgba(144,202,249,0.3)',
+    borderRadius: 6, padding: '3px 12px', fontSize: 12, fontWeight: 700,
   },
   errorBar: {
     background: 'rgba(214,48,49,0.15)', color: '#ff6b6b',
@@ -335,20 +369,29 @@ const styles: Record<string, React.CSSProperties> = {
     padding: '6px 20px', fontSize: 13, textAlign: 'center',
   },
   actionLog: {
-    background: 'rgba(255,255,255,0.03)', color: '#b2bec3',
-    padding: '5px 20px', fontSize: 13, textAlign: 'center',
+    background: 'rgba(255,255,255,0.03)', color: '#90a4ae',
+    padding: '4px 20px', fontSize: 12, textAlign: 'center',
     borderBottom: '1px solid rgba(255,255,255,0.04)',
   },
   tableWrapper: {
-    flex: 1, position: 'relative', margin: '20px 24px', minHeight: 480,
+    flex: 1, position: 'relative', margin: '16px 20px', minHeight: 460,
   },
   tableOval: {
     position: 'absolute',
-    top: '12%', left: '8%', right: '8%', bottom: '12%',
+    top: '10%', left: '7%', right: '7%', bottom: '10%',
     borderRadius: '50%',
-    background: 'radial-gradient(ellipse at center, #1a6b3a 0%, #145530 60%, #0d3d22 100%)',
-    border: '6px solid #0a2e18',
-    boxShadow: 'inset 0 0 40px rgba(0,0,0,0.5), 0 8px 32px rgba(0,0,0,0.6)',
+    background: 'radial-gradient(ellipse at 50% 40%, #1565c0 0%, #0d47a1 55%, #082d7a 100%)',
+    border: '6px solid #051d52',
+    boxShadow: 'inset 0 0 50px rgba(0,0,0,0.5), 0 8px 40px rgba(0,0,0,0.7)',
+  },
+  myHoleCards: {
+    display: 'flex', alignItems: 'center', gap: 16,
+    padding: '10px 20px',
+    background: 'rgba(0,0,0,0.5)',
+    borderTop: '1px solid rgba(255,255,255,0.07)',
+  },
+  myHandLabel: {
+    display: 'flex', flexDirection: 'column', gap: 2,
   },
   actionBtn: {
     background: 'linear-gradient(135deg, #f0c040, #e8a020)',
@@ -356,8 +399,8 @@ const styles: Record<string, React.CSSProperties> = {
     padding: '12px 28px', fontSize: 15, fontWeight: 700, cursor: 'pointer',
   },
   waitingTurn: {
-    textAlign: 'center', padding: '12px', color: '#636e72', fontSize: 13,
-    background: 'rgba(0,0,0,0.3)', borderTop: '1px solid rgba(255,255,255,0.06)',
+    textAlign: 'center', padding: '12px', color: '#546e7a', fontSize: 13,
+    background: 'rgba(0,0,0,0.35)', borderTop: '1px solid rgba(255,255,255,0.05)',
   },
   judging: {
     textAlign: 'center', padding: '14px', color: '#f0c040', fontSize: 16,

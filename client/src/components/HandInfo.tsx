@@ -31,17 +31,19 @@ const OUTS_HINT: Record<number, string> = {
 };
 
 export default function HandInfo({ handDescription, draws, phase }: Props) {
-  if (!handDescription || phase === 'waiting' || phase === 'showdown') return null;
-
+  if (phase === 'waiting' || phase === 'showdown') return null;
   const filteredDraws = (draws ?? []).slice(0, 3);
+  if (!handDescription && filteredDraws.length === 0) return null;
 
   return (
     <div style={styles.container}>
-      {/* 現在のハンド */}
-      <div style={styles.section}>
-        <span style={styles.label}>{PHASE_LABELS[phase] ?? phase}</span>
-        <span style={styles.hand}>{handDescription}</span>
-      </div>
+      {/* 現在のハンド（handDescription が渡された場合のみ表示） */}
+      {handDescription && (
+        <div style={styles.section}>
+          <span style={styles.label}>{PHASE_LABELS[phase] ?? phase}</span>
+          <span style={styles.hand}>{handDescription}</span>
+        </div>
+      )}
 
       {/* ドロー情報 */}
       {filteredDraws.length > 0 && (

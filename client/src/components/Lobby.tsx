@@ -16,7 +16,7 @@ export default function Lobby({ onJoin, error }: Props) {
   };
 
   const createRoom = () => {
-    const id = Math.random().toString(36).slice(2, 8).toUpperCase();
+    const id = String(Math.floor(1000 + Math.random() * 9000));
     setRoomId(id);
   };
 
@@ -46,9 +46,10 @@ export default function Lobby({ onJoin, error }: Props) {
                 style={{ ...styles.input, flex: 1 }}
                 type="text"
                 value={roomId}
-                onChange={e => setRoomId(e.target.value.toUpperCase())}
-                placeholder="ABCD12"
-                maxLength={8}
+                onChange={e => setRoomId(e.target.value.replace(/\D/g, '').slice(0, 4))}
+                placeholder="1234"
+                maxLength={4}
+                inputMode="numeric"
               />
               <button type="button" onClick={createRoom} style={styles.createBtn}>
                 新規作成
