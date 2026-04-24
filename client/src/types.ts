@@ -16,9 +16,11 @@ export interface PublicPlayer {
   chips: number;
   cards: Card[];
   bet: number;
+  totalBet: number;
   status: PlayerStatus;
   isDealer: boolean;
   hasActed: boolean;
+  connected: boolean;
 }
 
 export interface Winner {
@@ -27,6 +29,7 @@ export interface Winner {
   amount: number;
   hand?: string;
   cards?: Card[];
+  potLabel?: string;
 }
 
 export interface GameState {

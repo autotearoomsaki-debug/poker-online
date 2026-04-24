@@ -3,92 +3,74 @@ import { Card as CardType } from '../types';
 interface Props {
   card: CardType;
   small?: boolean;
+  animationDelay?: number; // ms
 }
 
 const SUIT_SYMBOL: Record<string, string> = {
-  spades: '♠',
-  hearts: '♥',
-  diamonds: '♦',
-  clubs: '♣',
+  spades: '♠', hearts: '♥', diamonds: '♦', clubs: '♣',
 };
-
 const RED_SUITS = new Set(['hearts', 'diamonds']);
 
-export default function Card({ card, small = false }: Props) {
+export default function Card({ card, small = false, animationDelay = 0 }: Props) {
+  const w = small ? 42 : 62;
+  const h = small ? 58 : 86;
+  const fontSize = small ? 11 : 13;
+  const centerSize = small ? 20 : 24;
+
+  const baseStyle: React.CSSProperties = {
+    width: w, height: h,
+    borderRadius: small ? 6 : 9,
+    position: 'relative',
+    display: 'flex', alignItems: 'center', justifyContent: 'center',
+    boxShadow: '0 2px 8px rgba(0,0,0,0.35)',
+    userSelect: 'none', flexShrink: 0,
+    animationFillMode: 'both',
+    animationDelay: `${animationDelay}ms`,
+  };
+
   if (card.hidden) {
     return (
-      <div style={{ ...styles.card(small), ...styles.hidden }}>
-        <span style={styles.back}>🂠</span>
+      <div style={{
+        ...baseStyle,
+        background: 'linear-gradient(135deg, #1e3799, #0c2461)',
+        border: '2px solid rgba(255,255,255,0.15)',
+        animation: 'cardDeal 0.25s ease-out',
+      }}>
+        <div style={{
+          position: 'absolute', inset: 3,
+          borderRadius: small ? 4 : 7,
+          background: 'repeating-linear-gradient(45deg, rgba(255,255,255,0.03) 0px, rgba(255,255,255,0.03) 2px, transparent 2px, transparent 8px)',
+        }} />
       </div>
     );
   }
 
   const isRed = RED_SUITS.has(card.suit ?? '');
-  const color = isRed ? '#d63031' : '#2d3436';
+  const color = isRed ? '#c0392b' : '#2c3e50';
+  const sym = SUIT_SYMBOL[card.suit ?? ''] ?? '?';
 
   return (
-    <div style={styles.card(small)}>
-      <div style={{ ...styles.corner, color }}>
-        <div style={styles.rank}>{card.rank}</div>
-        <div style={styles.suit}>{SUIT_SYMBOL[card.suit ?? '']}</div>
+    <div style={{
+      ...baseStyle,
+      background: '#fff',
+      border: '2px solid #ddd',
+      animation: 'cardFlip 0.3s ease-out',
+    }}>
+      {/* 左上 */}
+      <div style={{ position: 'absolute', top: 3, left: 5, color, lineHeight: 1 }}>
+        <div style={{ fontSize, fontWeight: 700 }}>{card.rank}</div>
+        <div style={{ fontSize: fontSize - 1 }}>{sym}</div>
       </div>
-      <div style={{ ...styles.center, color }}>{SUIT_SYMBOL[card.suit ?? '']}</div>
-      <div style={{ ...styles.corner, ...styles.bottomRight, color }}>
-        <div style={styles.rank}>{card.rank}</div>
-        <div style={styles.suit}>{SUIT_SYMBOL[card.suit ?? '']}</div>
+      {/* 中央 */}
+      <div style={{ fontSize: centerSize, color, lineHeight: 1 }}>{sym}</div>
+      {/* 右下 (回転) */}
+      <div style={{
+        position: 'absolute', bottom: 3, right: 5, color,
+        lineHeight: 1, transform: 'rotate(180deg)',
+      }}>
+        <div style={{ fontSize, fontWeight: 700 }}>{card.rank}</div>
+        <div style={{ fontSize: fontSize - 1 }}>{sym}</div>
       </div>
     </div>
   );
 }
-
-const styles = {
-  card: (small: boolean): React.CSSProperties => ({
-    background: '#fff',
-    border: '2px solid #ddd',
-    borderRadius: small ? 6 : 10,
-    width: small ? 44 : 64,
-    height: small ? 60 : 88,
-    position: 'relative',
-    display: 'flex',
-    alignItems: 'center',
-    justifyContent: 'center',
-    boxShadow: '0 2px 8px rgba(0,0,0,0.3)',
-    userSelect: 'none',
-    flexShrink: 0,
-  }),
-  hidden: {
-    background: 'linear-gradient(135deg, #2980b9, #1a1a6e)',
-    border: '2px solid #555',
-  } as React.CSSProperties,
-  back: {
-    fontSize: 28,
-    color: 'rgba(255,255,255,0.3)',
-  } as React.CSSProperties,
-  corner: {
-    position: 'absolute',
-    top: 4,
-    left: 6,
-    display: 'flex',
-    flexDirection: 'column',
-    alignItems: 'center',
-    lineHeight: 1,
-  } as React.CSSProperties,
-  bottomRight: {
-    top: 'auto',
-    left: 'auto',
-    bottom: 4,
-    right: 6,
-    transform: 'rotate(180deg)',
-  } as React.CSSProperties,
-  rank: {
-    fontSize: 13,
-    fontWeight: 700,
-  } as React.CSSProperties,
-  suit: {
-    fontSize: 11,
-  } as React.CSSProperties,
-  center: {
-    fontSize: 24,
-    lineHeight: 1,
-  } as React.CSSProperties,
-};

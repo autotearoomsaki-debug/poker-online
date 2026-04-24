@@ -15,9 +15,11 @@ export interface Player {
   chips: number;
   cards: Card[];
   bet: number;
+  totalBet: number;   // ハンド全体の累積ベット額（サイドポット計算用）
   status: PlayerStatus;
   isDealer: boolean;
   hasActed: boolean;
+  connected: boolean;
 }
 
 export interface Winner {
@@ -26,6 +28,7 @@ export interface Winner {
   amount: number;
   hand?: string;
   cards?: Card[];
+  potLabel?: string;
 }
 
 export interface PublicCard {
@@ -40,9 +43,11 @@ export interface PublicPlayer {
   chips: number;
   cards: PublicCard[];
   bet: number;
+  totalBet: number;
   status: PlayerStatus;
   isDealer: boolean;
   hasActed: boolean;
+  connected: boolean;
 }
 
 export interface GameState {
