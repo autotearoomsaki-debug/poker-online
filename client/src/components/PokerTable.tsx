@@ -4,6 +4,7 @@ import Card from './Card';
 import PlayerSeat from './PlayerSeat';
 import BettingControls from './BettingControls';
 import HandInfo from './HandInfo';
+import ActionToast from './ActionToast';
 import { HandWinCelebration, GameOverCelebration } from './Celebration';
 
 interface Props {
@@ -123,8 +124,17 @@ export default function PokerTable({ gameState, myId, onStartGame, onAction, onN
         <GameOverCelebration winnerName={gameState.gameOver.winnerName} isMe={gameState.gameOver.winnerId === myId} onReset={handleReset} />
       )}
       {showCelebration && !gameState.gameOver && gameState.winners.length > 0 && (
-        <HandWinCelebration winners={gameState.winners} myId={myId} onNext={handleNext} pot={gameState.pot} />
+        <HandWinCelebration
+          winners={gameState.winners}
+          myId={myId}
+          onNext={handleNext}
+          pot={gameState.pot}
+          allPlayers={gameState.players}
+        />
       )}
+
+      {/* ── アクショントースト ── */}
+      <ActionToast action={gameState.lastAction} />
 
       {/* ── ヘッダー ── */}
       <div style={styles.header}>
@@ -138,9 +148,6 @@ export default function PokerTable({ gameState, myId, onStartGame, onAction, onN
       </div>
 
       {error && <div style={styles.errorBar}>{error}</div>}
-      {gameState.lastAction && !error && (
-        <div style={styles.actionLog}>{gameState.lastAction}</div>
-      )}
 
       {/* ── テーブル ── */}
       <div style={styles.tableSection}>

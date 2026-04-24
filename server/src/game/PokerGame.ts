@@ -490,9 +490,13 @@ export class PokerGame {
       roomId: this.roomId,
       players: this.players.map(p => {
         let cards: PublicCard[];
+        let handDescription: string | undefined;
         if (this.phase === 'showdown') {
           const eligible = p.status !== 'folded' && p.status !== 'sitting_out';
           cards = eligible ? p.cards : p.cards.map(() => ({ hidden: true }));
+          if (eligible && p.cards.length >= 2) {
+            handDescription = getMyHandInfo(p.cards, this.communityCards).description;
+          }
         } else if (p.id === forPlayerId) {
           cards = p.cards;
         } else {
@@ -502,6 +506,7 @@ export class PokerGame {
           id: p.id, name: p.name, chips: p.chips, cards,
           bet: p.bet, totalBet: p.totalBet, status: p.status,
           isDealer: p.isDealer, hasActed: p.hasActed, connected: p.connected,
+          handDescription,
         };
       }),
       communityCards: this.communityCards,

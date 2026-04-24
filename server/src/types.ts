@@ -55,6 +55,8 @@ export interface PublicPlayer {
   isDealer: boolean;
   hasActed: boolean;
   connected: boolean;
+  /** ショーダウン時のみ: 確定した手役名 */
+  handDescription?: string;
 }
 
 export interface GameState {
