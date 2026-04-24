@@ -39,6 +39,8 @@ export default function PokerTable({ gameState, myId, onStartGame, onAction, onN
   const [showCelebration, setShowCelebration] = useState(false);
   const [judging, setJudging] = useState(false);
   const [allInFlash, setAllInFlash] = useState(false);
+  // プレイヤーごとのアクション表示 {playerId → actionText}
+  const [playerActions, setPlayerActions] = useState<Record<string, string>>({});
 
   useEffect(() => {
     const h = () => setWindowW(window.innerWidth);
@@ -65,6 +67,25 @@ export default function PokerTable({ gameState, myId, onStartGame, onAction, onN
       const t = setTimeout(() => setAllInFlash(false), 1800);
       return () => clearTimeout(t);
     }
+  }, [gameState?.lastAction]);
+
+  // 誰がアクションしたか追跡（座席バッジ用）
+  useEffect(() => {
+    const action = gameState?.lastAction;
+    if (!action || !gameState) return;
+    const nameMatch = action.match(/^(.+?)\s+(が|→)/);
+    if (!nameMatch) return;
+    const name = nameMatch[1];
+    const player = gameState.players.find(p => p.name === name);
+    if (!player) return;
+    const id = player.id;
+    // アクションのコア部分（名前を除く）
+    const core = action.replace(/^.+?が/, '');
+    setPlayerActions(prev => ({ ...prev, [id]: core }));
+    const t = setTimeout(() => setPlayerActions(prev => {
+      const n = { ...prev }; delete n[id]; return n;
+    }), 2500);
+    return () => clearTimeout(t);
   }, [gameState?.lastAction]);
 
   const [copied, setCopied] = useState(false);
@@ -152,8 +173,8 @@ export default function PokerTable({ gameState, myId, onStartGame, onAction, onN
       {/* ── テーブル ── */}
       <div style={styles.tableSection}>
         {isMobile
-          ? <MobileLayout gameState={gameState} myId={myId} myIdx={myIdx} onStartGame={onStartGame} isHost={isHost} />
-          : <OvalLayout gameState={gameState} myId={myId} myIdx={myIdx} onStartGame={onStartGame} isHost={isHost} />
+          ? <MobileLayout gameState={gameState} myId={myId} myIdx={myIdx} onStartGame={onStartGame} isHost={isHost} playerActions={playerActions} />
+          : <OvalLayout gameState={gameState} myId={myId} myIdx={myIdx} onStartGame={onStartGame} isHost={isHost} playerActions={playerActions} />
         }
       </div>
 
@@ -197,9 +218,10 @@ export default function PokerTable({ gameState, myId, onStartGame, onAction, onN
 
 // ─── 楕円レイアウト ───────────────────────────────────
 
-function OvalLayout({ gameState, myId, myIdx, onStartGame, isHost }: {
+function OvalLayout({ gameState, myId, myIdx, onStartGame, isHost, playerActions }: {
   gameState: GameState; myId: string; myIdx: number;
   onStartGame: () => void; isHost: boolean;
+  playerActions: Record<string, string>;
 }) {
   return (
     <div style={styles.tableWrapper}>
@@ -216,6 +238,7 @@ function OvalLayout({ gameState, myId, myIdx, onStartGame, isHost }: {
             isSB={gameState.phase !== 'waiting' && idx === gameState.smallBlindIndex}
             isBB={gameState.phase !== 'waiting' && idx === gameState.bigBlindIndex}
             hideCards={player.id === myId}
+            latestAction={playerActions[player.id]}
           />
         </div>
       ))}
@@ -225,9 +248,10 @@ function OvalLayout({ gameState, myId, myIdx, onStartGame, isHost }: {
 
 // ─── モバイルレイアウト ───────────────────────────────
 
-function MobileLayout({ gameState, myId, myIdx, onStartGame, isHost }: {
+function MobileLayout({ gameState, myId, myIdx, onStartGame, isHost, playerActions }: {
   gameState: GameState; myId: string; myIdx: number;
   onStartGame: () => void; isHost: boolean;
+  playerActions: Record<string, string>;
 }) {
   const others = gameState.players.filter(p => p.id !== myId);
   const me = gameState.players[myIdx];
@@ -247,6 +271,7 @@ function MobileLayout({ gameState, myId, myIdx, onStartGame, isHost }: {
               isSB={gameState.phase !== 'waiting' && idx === gameState.smallBlindIndex}
               isBB={gameState.phase !== 'waiting' && idx === gameState.bigBlindIndex}
               compact
+              latestAction={playerActions[player.id]}
             />
           );
         })}
@@ -264,9 +289,59 @@ function MobileLayout({ gameState, myId, myIdx, onStartGame, isHost }: {
             isSB={gameState.phase !== 'waiting' && myIdx === gameState.smallBlindIndex}
             isBB={gameState.phase !== 'waiting' && myIdx === gameState.bigBlindIndex}
             hideCards
+            latestAction={playerActions[me.id]}
           />
         </div>
       )}
+    </div>
+  );
+}
+
+// ─── 勝率パネル ──────────────────────────────────────
+
+function EquityPanel({ players, mobile }: { players: GameState['players']; mobile: boolean }) {
+  const eligible = players.filter(p => p.equity !== undefined);
+  if (eligible.length < 2) return null;
+
+  return (
+    <div style={{
+      background: 'rgba(0,0,0,0.55)',
+      border: '1px solid rgba(240,192,64,0.25)',
+      borderRadius: 10,
+      padding: mobile ? '5px 10px' : '6px 14px',
+      display: 'flex', flexDirection: 'column', gap: 3,
+      minWidth: mobile ? 180 : 220,
+      animation: 'celebrationIn 0.3s ease-out',
+    }}>
+      <div style={{ textAlign: 'center', fontSize: 9, fontWeight: 900, color: '#f0c040', letterSpacing: 1, marginBottom: 1 }}>
+        WIN PROBABILITY
+      </div>
+      {eligible.map(p => (
+        <div key={p.id} style={{ display: 'flex', alignItems: 'center', gap: 6 }}>
+          <span style={{ fontSize: 10, fontWeight: 700, color: '#ddd', minWidth: 50, textAlign: 'right', overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>
+            {p.name}
+          </span>
+          <div style={{ flex: 1, height: 6, borderRadius: 3, background: 'rgba(255,255,255,0.1)', overflow: 'hidden' }}>
+            <div style={{
+              height: '100%',
+              width: `${p.equity}%`,
+              background: (p.equity ?? 0) >= 60
+                ? 'linear-gradient(90deg,#00e676,#00b894)'
+                : (p.equity ?? 0) >= 35
+                  ? 'linear-gradient(90deg,#f0c040,#e8a020)'
+                  : 'linear-gradient(90deg,#ef5350,#b71c1c)',
+              borderRadius: 3,
+              transition: 'width 1s ease',
+            }} />
+          </div>
+          <span style={{
+            fontSize: 12, fontWeight: 900, minWidth: 30, textAlign: 'left',
+            color: (p.equity ?? 0) >= 60 ? '#00e676' : (p.equity ?? 0) >= 35 ? '#f0c040' : '#ef5350',
+          }}>
+            {p.equity}%
+          </span>
+        </div>
+      ))}
     </div>
   );
 }
@@ -305,10 +380,10 @@ function Board({ gameState, onStartGame, isHost, mobile = false }: {
     if (diff <= 0) { setShownCount(target); return; }
     if (diff === 1) { setShownCount(target); return; } // ターン・リバーは即時
 
-    // フロップ（3枚）: 500ms ずつ段階的に表示
+    // フロップ（3枚）: 750ms ずつ段階的に表示
     const timers: ReturnType<typeof setTimeout>[] = [];
     for (let i = 0; i < diff; i++) {
-      timers.push(setTimeout(() => setShownCount(prev + i + 1), i * 500));
+      timers.push(setTimeout(() => setShownCount(prev + i + 1), i * 750));
     }
     return () => timers.forEach(clearTimeout);
   }, [gameState.communityCards.length]);
@@ -366,6 +441,11 @@ function Board({ gameState, onStartGame, isHost, mobile = false }: {
           ))
         )}
       </div>
+
+      {/* ── オールイン勝率パネル ── */}
+      {gameState.players.some(p => p.equity !== undefined) && (
+        <EquityPanel players={gameState.players} mobile={mobile} />
+      )}
 
       {gameState.phase === 'waiting' && (
         <div style={{ textAlign: 'center' }}>

@@ -37,7 +37,7 @@ function scheduleRunout(roomId: string) {
     const result = g.advanceRunout();
     broadcastState(roomId);
     if (result === 'continue') scheduleRunout(roomId);
-  }, 1200);
+  }, 2500);
 }
 
 io.on('connection', (socket) => {

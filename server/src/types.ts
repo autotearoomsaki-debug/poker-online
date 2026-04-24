@@ -57,6 +57,8 @@ export interface PublicPlayer {
   connected: boolean;
   /** ショーダウン時のみ: 確定した手役名 */
   handDescription?: string;
+  /** オールイン時: モンテカルロ勝率 (0–100) */
+  equity?: number;
 }
 
 export interface GameState {

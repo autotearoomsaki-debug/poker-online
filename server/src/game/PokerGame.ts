@@ -120,6 +120,7 @@ export class PokerGame {
   private lastAction: string = '';
   private gameOver: { winnerId: string; winnerName: string } | null = null;
   private pendingRunout = false;
+  private equityCache: { boardLen: number; equity: Map<string, number> } | null = null;
   private disconnectTimers = new Map<string, ReturnType<typeof setTimeout>>();
 
   constructor(private roomId: string) {
@@ -277,13 +278,16 @@ export class PokerGame {
         if (raiseTo < minNeeded && raiseTo - cur.bet < cur.chips)
           return { success: false, error: `最小レイズは $${minNeeded}` };
         const add = raiseTo - cur.bet;
+        const wasBet = this.currentBet === 0; // フロップ以降でまだ誰もベットしていない
         this.minRaise = Math.max(this.minRaise, raiseTo - this.currentBet);
         cur.chips -= add; cur.bet = raiseTo; cur.totalBet += add;
         this.pot += add; this.currentBet = raiseTo;
         cur.hasActed = true;
         if (cur.chips === 0) cur.status = 'allin';
         this.players.forEach(p => { if (p.id !== cur.id && p.status === 'active') p.hasActed = false; });
-        this.lastAction = `${cur.name} がレイズ → $${raiseTo}`;
+        this.lastAction = wasBet
+          ? `${cur.name} がベット $${raiseTo}`
+          : `${cur.name} がレイズ → $${raiseTo}`;
         break;
       }
       case 'allin': {
@@ -433,6 +437,72 @@ export class PokerGame {
     return idx;
   }
 
+  // ─── モンテカルロ勝率計算 ──────────────────────────
+
+  private calculateEquity(nSims = 600): Map<string, number> {
+    const eligible = this.players.filter(
+      p => p.status !== 'folded' && p.status !== 'sitting_out' && p.cards.length === 2,
+    );
+    if (eligible.length < 2) return new Map();
+
+    const SUITS = ['spades', 'hearts', 'diamonds', 'clubs'] as const;
+    const RANKS = ['2','3','4','5','6','7','8','9','10','J','Q','K','A'] as const;
+
+    const usedSet = new Set<string>();
+    for (const p of eligible) for (const c of p.cards) usedSet.add(`${c.rank}|${c.suit}`);
+    for (const c of this.communityCards) usedSet.add(`${c.rank}|${c.suit}`);
+
+    const remaining: Card[] = [];
+    for (const suit of SUITS) {
+      for (const rank of RANKS) {
+        if (!usedSet.has(`${rank}|${suit}`)) remaining.push({ rank, suit });
+      }
+    }
+
+    const needed = 5 - this.communityCards.length;
+    const wins = new Map<string, number>(eligible.map(p => [p.id, 0]));
+
+    for (let sim = 0; sim < nSims; sim++) {
+      // Fisher-Yates shuffle (先頭 needed 枚だけ)
+      for (let i = 0; i < needed; i++) {
+        const j = i + Math.floor(Math.random() * (remaining.length - i));
+        [remaining[i], remaining[j]] = [remaining[j], remaining[i]];
+      }
+      const board = [...this.communityCards, ...remaining.slice(0, needed)];
+
+      const results = eligible.map(p => HandEvaluator.evaluate([...p.cards, ...board]));
+
+      let bestRank = -1;
+      for (const r of results) if (r.rank > bestRank) bestRank = r.rank;
+
+      const tied: number[] = [];
+      for (let i = 0; i < results.length; i++) {
+        if (results[i].rank === bestRank) tied.push(i);
+      }
+
+      // 複数ベスト → タイブレーカー比較
+      let winIdx = tied;
+      for (let tb = 0; tb < 5 && winIdx.length > 1; tb++) {
+        const maxTb = Math.max(...winIdx.map(i => results[i].tiebreakers[tb] ?? 0));
+        winIdx = winIdx.filter(i => (results[i].tiebreakers[tb] ?? 0) === maxTb);
+      }
+
+      const share = 1 / winIdx.length;
+      for (const i of winIdx) wins.set(eligible[i].id, (wins.get(eligible[i].id)! + share));
+    }
+
+    const equity = new Map<string, number>();
+    for (const [id, w] of wins) equity.set(id, Math.round((w / nSims) * 100));
+    return equity;
+  }
+
+  private getEquity(): Map<string, number> {
+    if (this.equityCache?.boardLen === this.communityCards.length) return this.equityCache.equity;
+    const equity = this.calculateEquity();
+    this.equityCache = { boardLen: this.communityCards.length, equity };
+    return equity;
+  }
+
   isPendingRunout(): boolean { return this.pendingRunout; }
 
   /**
@@ -460,6 +530,7 @@ export class PokerGame {
 
   resetForNewHand() {
     this.pendingRunout = false;
+    this.equityCache = null;
     this.players = this.players.filter(p => p.chips > 0 && p.connected);
     // チップのあるプレイヤーが1人以下 → ゲームオーバー
     if (this.players.length <= 1) {
@@ -502,11 +573,19 @@ export class PokerGame {
         } else {
           cards = p.cards.map(() => ({ hidden: true }));
         }
+
+        // オールイン時の勝率（pendingRunout 中のみ計算）
+        let equity: number | undefined;
+        if (this.pendingRunout) {
+          const eMap = this.getEquity();
+          equity = eMap.get(p.id);
+        }
+
         return {
           id: p.id, name: p.name, chips: p.chips, cards,
           bet: p.bet, totalBet: p.totalBet, status: p.status,
           isDealer: p.isDealer, hasActed: p.hasActed, connected: p.connected,
-          handDescription,
+          handDescription, equity,
         };
       }),
       communityCards: this.communityCards,

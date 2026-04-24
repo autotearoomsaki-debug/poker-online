@@ -65,6 +65,13 @@
         60%  { opacity: 1; transform: translateY(4px)   rotateY(-8deg) scale(1.05); }
         100% { opacity: 1; transform: translateY(0)     rotateY(0deg)  scale(1); }
       }
+      @keyframes actionBadge {
+        0%   { opacity: 0; transform: translateX(-50%) translateY(8px) scale(0.8); }
+        15%  { opacity: 1; transform: translateX(-50%) translateY(-3px) scale(1.06); }
+        25%  { opacity: 1; transform: translateX(-50%) translateY(0)    scale(1); }
+        70%  { opacity: 1; transform: translateX(-50%) translateY(0)    scale(1); }
+        100% { opacity: 0; transform: translateX(-50%) translateY(-6px) scale(0.95); }
+      }
       @keyframes toastSlide {
         0%   { opacity: 0; transform: translateX(-50%) translateY(16px) scale(0.88); }
         18%  { opacity: 1; transform: translateX(-50%) translateY(-4px) scale(1.04); }
