@@ -1,4 +1,4 @@
-import { useEffect, useState } from 'react';
+import { useEffect, useRef, useState } from 'react';
 import { GameState } from '../types';
 import Card from './Card';
 import PlayerSeat from './PlayerSeat';
@@ -37,6 +37,7 @@ export default function PokerTable({ gameState, myId, onStartGame, onAction, onN
   const [windowW, setWindowW] = useState(window.innerWidth);
   const [showCelebration, setShowCelebration] = useState(false);
   const [judging, setJudging] = useState(false);
+  const [allInFlash, setAllInFlash] = useState(false);
 
   useEffect(() => {
     const h = () => setWindowW(window.innerWidth);
@@ -44,20 +45,26 @@ export default function PokerTable({ gameState, myId, onStartGame, onAction, onN
     return () => window.removeEventListener('resize', h);
   }, []);
 
-  // ショーダウンになったら 1 秒「判定中...」を表示してから演出を出す
+  // ショーダウン 1 秒待機
   useEffect(() => {
     if (gameState?.phase === 'showdown') {
       setJudging(true);
-      const t = setTimeout(() => {
-        setJudging(false);
-        setShowCelebration(true);
-      }, 1000);
+      const t = setTimeout(() => { setJudging(false); setShowCelebration(true); }, 1000);
       return () => clearTimeout(t);
     } else {
       setJudging(false);
       setShowCelebration(false);
     }
   }, [gameState?.phase, gameState?.winners]);
+
+  // ALL-IN フラッシュ
+  useEffect(() => {
+    if (gameState?.lastAction?.includes('オールイン')) {
+      setAllInFlash(true);
+      const t = setTimeout(() => setAllInFlash(false), 1800);
+      return () => clearTimeout(t);
+    }
+  }, [gameState?.lastAction]);
 
   const [copied, setCopied] = useState(false);
   const copyRoomId = () => {
@@ -91,21 +98,32 @@ export default function PokerTable({ gameState, myId, onStartGame, onAction, onN
 
   return (
     <div style={styles.wrapper}>
-      {/* ── 優勝演出オーバーレイ ── */}
+      {/* ── ALL-IN フラッシュ ── */}
+      {allInFlash && (
+        <div style={styles.allInOverlay}>
+          <div style={styles.allInText}>ALL IN!</div>
+          {/* チップ雨 */}
+          {Array.from({ length: 18 }, (_, i) => (
+            <div key={i} style={{
+              position: 'absolute',
+              left: `${5 + i * 5.2}%`,
+              top: `${20 + (i % 5) * 8}%`,
+              fontSize: 20 + (i % 4) * 6,
+              animation: `chipRain ${0.8 + (i % 4) * 0.3}s ${(i % 6) * 0.15}s ease-in both`,
+              pointerEvents: 'none',
+            }}>
+              {['🪙', '💰', '🎰', '💎'][i % 4]}
+            </div>
+          ))}
+        </div>
+      )}
+
+      {/* ── 優勝演出 ── */}
       {showCelebration && gameState.gameOver && (
-        <GameOverCelebration
-          winnerName={gameState.gameOver.winnerName}
-          isMe={gameState.gameOver.winnerId === myId}
-          onReset={handleReset}
-        />
+        <GameOverCelebration winnerName={gameState.gameOver.winnerName} isMe={gameState.gameOver.winnerId === myId} onReset={handleReset} />
       )}
       {showCelebration && !gameState.gameOver && gameState.winners.length > 0 && (
-        <HandWinCelebration
-          winners={gameState.winners}
-          myId={myId}
-          onNext={handleNext}
-          pot={gameState.pot}
-        />
+        <HandWinCelebration winners={gameState.winners} myId={myId} onNext={handleNext} pot={gameState.pot} />
       )}
 
       {/* ── ヘッダー ── */}
@@ -113,9 +131,7 @@ export default function PokerTable({ gameState, myId, onStartGame, onAction, onN
         <div style={{ display: 'flex', alignItems: 'center', gap: 8 }}>
           <span style={{ color: '#888', fontSize: 11 }}>ROOM</span>
           <strong style={styles.roomId}>{gameState.roomId}</strong>
-          <button onClick={copyRoomId} style={styles.copyBtn}>
-            {copied ? '✓' : 'コピー'}
-          </button>
+          <button onClick={copyRoomId} style={styles.copyBtn}>{copied ? '✓' : 'コピー'}</button>
         </div>
         <div style={styles.phaseBadge}>{PHASE_LABEL[gameState.phase]}</div>
         <div style={{ fontSize: 12, color: '#888' }}>{gameState.players.length}人参加中</div>
@@ -127,24 +143,23 @@ export default function PokerTable({ gameState, myId, onStartGame, onAction, onN
       )}
 
       {/* ── テーブル ── */}
-      {isMobile
-        ? <MobileLayout gameState={gameState} myId={myId} myIdx={myIdx} onStartGame={onStartGame} isHost={isHost} />
-        : <OvalLayout gameState={gameState} myId={myId} myIdx={myIdx} onStartGame={onStartGame} isHost={isHost} />
-      }
+      <div style={styles.tableSection}>
+        {isMobile
+          ? <MobileLayout gameState={gameState} myId={myId} myIdx={myIdx} onStartGame={onStartGame} isHost={isHost} />
+          : <OvalLayout gameState={gameState} myId={myId} myIdx={myIdx} onStartGame={onStartGame} isHost={isHost} />
+        }
+      </div>
 
-      {/* ── 自分のホールカード（大きく表示） ── */}
+      {/* ── 自分のホールカード ── */}
       {me && me.cards.length > 0 && gameState.phase !== 'waiting' && (
         <div style={styles.myHoleCards}>
-          <div style={{ display: 'flex', gap: isMobile ? 8 : 12, alignItems: 'center' }}>
-            {me.cards.map((c, i) => (
-              <Card key={i} card={c} animationDelay={i * 150} />
-            ))}
+          <div style={{ display: 'flex', gap: isMobile ? 8 : 10, alignItems: 'center' }}>
+            {me.cards.map((c, i) => <Card key={i} card={c} animationDelay={i * 150} />)}
           </div>
-          {/* ハンド情報をカードの右に配置 */}
           {me.status !== 'folded' && gameState.myHandDescription && gameState.phase !== 'showdown' && (
             <div style={styles.myHandLabel}>
               <div style={{ color: '#888', fontSize: 10, fontWeight: 600, textTransform: 'uppercase', letterSpacing: 0.5 }}>
-                {PHASE_LABEL[gameState.phase] ?? gameState.phase}
+                {PHASE_LABEL[gameState.phase]}
               </div>
               <div style={{ color: '#f0c040', fontWeight: 800, fontSize: 15 }}>
                 {gameState.myHandDescription}
@@ -156,17 +171,11 @@ export default function PokerTable({ gameState, myId, onStartGame, onAction, onN
 
       {/* ── ドロー情報 ── */}
       {me && me.status !== 'folded' && (
-        <HandInfo
-          handDescription={undefined}
-          draws={gameState.myDraws}
-          phase={gameState.phase}
-        />
+        <HandInfo handDescription={undefined} draws={gameState.myDraws} phase={gameState.phase} />
       )}
 
-      {/* ── 判定中インジケーター ── */}
-      {judging && (
-        <div style={styles.judging}>判定中...</div>
-      )}
+      {/* ── 判定中 ── */}
+      {judging && <div style={styles.judging}>判定中...</div>}
 
       {/* ── ベット操作 ── */}
       {isMyTurn && me && (
@@ -187,7 +196,6 @@ function OvalLayout({ gameState, myId, myIdx, onStartGame, isHost }: {
 }) {
   return (
     <div style={styles.tableWrapper}>
-      {/* Blue felt oval */}
       <div style={styles.tableOval}>
         <Board gameState={gameState} onStartGame={onStartGame} isHost={isHost} />
       </div>
@@ -195,10 +203,7 @@ function OvalLayout({ gameState, myId, myIdx, onStartGame, isHost }: {
         <div key={player.id} style={getSeatStyle(idx, myIdx, gameState.players.length)}>
           <PlayerSeat
             player={player}
-            isCurrentPlayer={
-              gameState.phase !== 'waiting' && gameState.phase !== 'showdown' &&
-              idx === gameState.currentPlayerIndex
-            }
+            isCurrentPlayer={gameState.phase !== 'waiting' && gameState.phase !== 'showdown' && idx === gameState.currentPlayerIndex}
             isMe={player.id === myId}
             isDealer={idx === gameState.dealerIndex}
             isSB={gameState.phase !== 'waiting' && idx === gameState.smallBlindIndex}
@@ -221,8 +226,8 @@ function MobileLayout({ gameState, myId, myIdx, onStartGame, isHost }: {
   const me = gameState.players[myIdx];
 
   return (
-    <div style={{ flex: 1, display: 'flex', flexDirection: 'column', gap: 8, padding: '8px 12px', overflow: 'auto' }}>
-      <div style={{ display: 'flex', flexWrap: 'wrap', gap: 6, justifyContent: 'center' }}>
+    <div style={{ height: '100%', display: 'flex', flexDirection: 'column', gap: 6, padding: '6px 10px', overflow: 'hidden' }}>
+      <div style={{ display: 'flex', flexWrap: 'wrap', gap: 4, justifyContent: 'center', flexShrink: 0 }}>
         {others.map(player => {
           const idx = gameState.players.indexOf(player);
           return (
@@ -239,9 +244,11 @@ function MobileLayout({ gameState, myId, myIdx, onStartGame, isHost }: {
           );
         })}
       </div>
-      <Board gameState={gameState} onStartGame={onStartGame} isHost={isHost} mobile />
+      <div style={{ flex: 1, minHeight: 0 }}>
+        <Board gameState={gameState} onStartGame={onStartGame} isHost={isHost} mobile />
+      </div>
       {me && (
-        <div style={{ display: 'flex', justifyContent: 'center' }}>
+        <div style={{ display: 'flex', justifyContent: 'center', flexShrink: 0 }}>
           <PlayerSeat
             player={me}
             isCurrentPlayer={gameState.phase !== 'waiting' && gameState.phase !== 'showdown' && myIdx === gameState.currentPlayerIndex}
@@ -257,17 +264,57 @@ function MobileLayout({ gameState, myId, myIdx, onStartGame, isHost }: {
   );
 }
 
-// ─── ボード（コミュニティカード + ポット + 待機） ────────
+// ─── ボード ───────────────────────────────────────────
 
 function Board({ gameState, onStartGame, isHost, mobile = false }: {
   gameState: GameState; onStartGame: () => void; isHost: boolean; mobile?: boolean;
 }) {
+  // フロップは3枚一気に届くので、クライアント側で1枚ずつ演出する
+  const [shownCount, setShownCount] = useState(0);
+  const prevLen = useRef(0);
+  const isFirstRender = useRef(true);
+
+  useEffect(() => {
+    const target = gameState.communityCards.length;
+
+    if (target === 0) {
+      setShownCount(0);
+      prevLen.current = 0;
+      isFirstRender.current = false;
+      return;
+    }
+
+    // 参加直後（既存の状態）は即時表示
+    if (isFirstRender.current) {
+      setShownCount(target);
+      prevLen.current = target;
+      isFirstRender.current = false;
+      return;
+    }
+
+    const prev = prevLen.current;
+    prevLen.current = target;
+    const diff = target - prev;
+    if (diff <= 0) { setShownCount(target); return; }
+    if (diff === 1) { setShownCount(target); return; } // ターン・リバーは即時
+
+    // フロップ（3枚）: 500ms ずつ段階的に表示
+    const timers: ReturnType<typeof setTimeout>[] = [];
+    for (let i = 0; i < diff; i++) {
+      timers.push(setTimeout(() => setShownCount(prev + i + 1), i * 500));
+    }
+    return () => timers.forEach(clearTimeout);
+  }, [gameState.communityCards.length]);
+
+  const visibleCards = gameState.communityCards.slice(0, shownCount);
+
   const style: React.CSSProperties = mobile
     ? {
         background: 'rgba(21,101,192,0.4)',
         border: '2px solid rgba(100,160,255,0.2)',
-        borderRadius: 16, padding: '12px 16px',
-        display: 'flex', flexDirection: 'column', alignItems: 'center', gap: 8,
+        borderRadius: 14, padding: '10px 14px',
+        display: 'flex', flexDirection: 'column', alignItems: 'center', gap: 6,
+        height: '100%', justifyContent: 'center',
       }
     : {
         position: 'absolute', top: '50%', left: '50%',
@@ -279,30 +326,43 @@ function Board({ gameState, onStartGame, isHost, mobile = false }: {
     <div style={style}>
       {gameState.phase !== 'waiting' && (
         <div style={{
-          color: '#fff', fontWeight: 800, fontSize: mobile ? 14 : 16,
-          background: 'rgba(0,0,0,0.45)',
-          borderRadius: 20, padding: '3px 16px',
-          border: '1px solid rgba(255,255,255,0.15)',
-          letterSpacing: 0.5,
+          color: '#fff', fontWeight: 800, fontSize: mobile ? 13 : 15,
+          background: 'rgba(0,0,0,0.5)',
+          borderRadius: 20, padding: '3px 14px',
+          border: '1px solid rgba(255,255,255,0.12)',
         }}>
           POT <span style={{ color: '#f0c040' }}>${gameState.pot.toLocaleString()}</span>
         </div>
       )}
 
-      <div style={{ display: 'flex', gap: mobile ? 4 : 6, alignItems: 'center', minHeight: mobile ? 58 : 86 }}>
-        {gameState.communityCards.length > 0
-          ? gameState.communityCards.map((c, i) => (
-              <Card key={i} card={c} small={mobile} animationDelay={i * 150} />
+      <div style={{ display: 'flex', gap: mobile ? 4 : 6, alignItems: 'center', minHeight: mobile ? 52 : 80 }}>
+        {visibleCards.length > 0
+          ? visibleCards.map((c, i) => (
+              <div key={i} style={{ animation: 'flopCard 0.45s cubic-bezier(0.34,1.4,0.64,1) both' }}>
+                <Card card={c} small={mobile} />
+              </div>
             ))
           : <p style={{ color: 'rgba(255,255,255,0.18)', fontSize: 12, fontStyle: 'italic' }}>
               コミュニティカード
             </p>
         }
+        {/* まだ表示されていないカードのプレースホルダー */}
+        {gameState.communityCards.length > shownCount && (
+          Array.from({ length: gameState.communityCards.length - shownCount }, (_, i) => (
+            <div key={`ph-${i}`} style={{
+              width: mobile ? 38 : 56, height: mobile ? 52 : 78,
+              borderRadius: mobile ? 5 : 8,
+              background: 'rgba(255,255,255,0.08)',
+              border: '1px dashed rgba(255,255,255,0.2)',
+              animation: 'pulse 0.8s ease-in-out infinite',
+            }} />
+          ))
+        )}
       </div>
 
       {gameState.phase === 'waiting' && (
         <div style={{ textAlign: 'center' }}>
-          <p style={{ color: '#b2bec3', fontSize: 14, marginBottom: 12 }}>
+          <p style={{ color: '#b2bec3', fontSize: 13, marginBottom: 10 }}>
             {gameState.players.length}人が参加中
             {gameState.players.length < 2 && ' — あと1人以上必要'}
           </p>
@@ -329,13 +389,14 @@ function Board({ gameState, onStartGame, isHost, mobile = false }: {
 
 const styles: Record<string, React.CSSProperties> = {
   wrapper: {
-    minHeight: '100vh', display: 'flex', flexDirection: 'column',
+    height: '100dvh',
+    display: 'flex', flexDirection: 'column',
     background: 'linear-gradient(160deg, #0f1923 0%, #1a2636 50%, #0f1923 100%)',
     overflow: 'hidden',
   },
   loading: {
     display: 'flex', flexDirection: 'column',
-    alignItems: 'center', justifyContent: 'center', minHeight: '100vh',
+    alignItems: 'center', justifyContent: 'center', height: '100dvh',
   },
   spinner: {
     width: 40, height: 40,
@@ -346,10 +407,11 @@ const styles: Record<string, React.CSSProperties> = {
   },
   header: {
     display: 'flex', justifyContent: 'space-between', alignItems: 'center',
-    padding: '8px 16px',
-    background: 'rgba(0,0,0,0.5)',
+    padding: '6px 14px',
+    background: 'rgba(0,0,0,0.55)',
     borderBottom: '1px solid rgba(255,255,255,0.07)',
-    flexWrap: 'wrap', gap: 6,
+    flexWrap: 'wrap', gap: 4,
+    flexShrink: 0,
   },
   roomId: { color: '#f0c040', fontSize: 20, letterSpacing: 4, fontWeight: 900 },
   copyBtn: {
@@ -361,20 +423,23 @@ const styles: Record<string, React.CSSProperties> = {
   phaseBadge: {
     background: 'rgba(21,101,192,0.35)', color: '#90caf9',
     border: '1px solid rgba(144,202,249,0.3)',
-    borderRadius: 6, padding: '3px 12px', fontSize: 12, fontWeight: 700,
+    borderRadius: 6, padding: '3px 10px', fontSize: 12, fontWeight: 700,
   },
   errorBar: {
     background: 'rgba(214,48,49,0.15)', color: '#ff6b6b',
     borderBottom: '1px solid rgba(214,48,49,0.3)',
-    padding: '6px 20px', fontSize: 13, textAlign: 'center',
+    padding: '5px 20px', fontSize: 12, textAlign: 'center', flexShrink: 0,
   },
   actionLog: {
     background: 'rgba(255,255,255,0.03)', color: '#90a4ae',
-    padding: '4px 20px', fontSize: 12, textAlign: 'center',
-    borderBottom: '1px solid rgba(255,255,255,0.04)',
+    padding: '3px 20px', fontSize: 12, textAlign: 'center',
+    borderBottom: '1px solid rgba(255,255,255,0.04)', flexShrink: 0,
+  },
+  tableSection: {
+    flex: 1, minHeight: 0, position: 'relative',
   },
   tableWrapper: {
-    flex: 1, position: 'relative', margin: '16px 20px', minHeight: 460,
+    position: 'absolute', inset: '8px 12px',
   },
   tableOval: {
     position: 'absolute',
@@ -385,27 +450,42 @@ const styles: Record<string, React.CSSProperties> = {
     boxShadow: 'inset 0 0 50px rgba(0,0,0,0.5), 0 8px 40px rgba(0,0,0,0.7)',
   },
   myHoleCards: {
-    display: 'flex', alignItems: 'center', gap: 16,
-    padding: '10px 20px',
+    display: 'flex', alignItems: 'center', gap: 14,
+    padding: '8px 16px',
     background: 'rgba(0,0,0,0.5)',
     borderTop: '1px solid rgba(255,255,255,0.07)',
+    flexShrink: 0,
   },
   myHandLabel: {
-    display: 'flex', flexDirection: 'column', gap: 2,
+    display: 'flex', flexDirection: 'column', gap: 1,
   },
   actionBtn: {
     background: 'linear-gradient(135deg, #f0c040, #e8a020)',
     color: '#1a1a2e', border: 'none', borderRadius: 8,
-    padding: '12px 28px', fontSize: 15, fontWeight: 700, cursor: 'pointer',
+    padding: '11px 26px', fontSize: 14, fontWeight: 700, cursor: 'pointer',
   },
   waitingTurn: {
-    textAlign: 'center', padding: '12px', color: '#546e7a', fontSize: 13,
+    textAlign: 'center', padding: '10px', color: '#546e7a', fontSize: 12,
     background: 'rgba(0,0,0,0.35)', borderTop: '1px solid rgba(255,255,255,0.05)',
+    flexShrink: 0,
   },
   judging: {
-    textAlign: 'center', padding: '14px', color: '#f0c040', fontSize: 16,
+    textAlign: 'center', padding: '12px', color: '#f0c040', fontSize: 15,
     fontWeight: 700, letterSpacing: 2,
     background: 'rgba(0,0,0,0.5)', borderTop: '1px solid rgba(240,192,64,0.2)',
     animation: 'pulse 0.8s ease-in-out infinite',
+    flexShrink: 0,
+  },
+  allInOverlay: {
+    position: 'fixed', inset: 0,
+    display: 'flex', alignItems: 'center', justifyContent: 'center',
+    pointerEvents: 'none', zIndex: 150,
+    overflow: 'hidden',
+  },
+  allInText: {
+    fontSize: 80, fontWeight: 900, color: '#ff6b35',
+    textShadow: '0 0 60px #ff6b35, 0 0 120px #e17055',
+    letterSpacing: 4,
+    animation: 'allInZoom 1.8s ease-out forwards',
   },
 };
