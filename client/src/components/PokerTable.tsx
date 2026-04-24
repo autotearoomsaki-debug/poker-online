@@ -36,6 +36,7 @@ function getSeatStyle(idx: number, myIdx: number, total: number): React.CSSPrope
 export default function PokerTable({ gameState, myId, onStartGame, onAction, onNewHand, onResetGame, error }: Props) {
   const [windowW, setWindowW] = useState(window.innerWidth);
   const [showCelebration, setShowCelebration] = useState(false);
+  const [judging, setJudging] = useState(false);
 
   useEffect(() => {
     const h = () => setWindowW(window.innerWidth);
@@ -43,12 +44,17 @@ export default function PokerTable({ gameState, myId, onStartGame, onAction, onN
     return () => window.removeEventListener('resize', h);
   }, []);
 
-  // ショーダウン or ゲームオーバーになったら演出を表示
+  // ショーダウンになったら 1 秒「判定中...」を表示してから演出を出す
   useEffect(() => {
     if (gameState?.phase === 'showdown') {
-      const t = setTimeout(() => setShowCelebration(true), 600);
+      setJudging(true);
+      const t = setTimeout(() => {
+        setJudging(false);
+        setShowCelebration(true);
+      }, 1000);
       return () => clearTimeout(t);
     } else {
+      setJudging(false);
       setShowCelebration(false);
     }
   }, [gameState?.phase, gameState?.winners]);
@@ -131,6 +137,11 @@ export default function PokerTable({ gameState, myId, onStartGame, onAction, onN
         ? <MobileLayout gameState={gameState} myId={myId} myIdx={myIdx} onStartGame={onStartGame} isHost={isHost} />
         : <OvalLayout gameState={gameState} myId={myId} myIdx={myIdx} onStartGame={onStartGame} isHost={isHost} />
       }
+
+      {/* ── 判定中インジケーター ── */}
+      {judging && (
+        <div style={styles.judging}>判定中...</div>
+      )}
 
       {/* ── ハンド情報 ── */}
       {me && me.status !== 'folded' && (
@@ -347,5 +358,11 @@ const styles: Record<string, React.CSSProperties> = {
   waitingTurn: {
     textAlign: 'center', padding: '12px', color: '#636e72', fontSize: 13,
     background: 'rgba(0,0,0,0.3)', borderTop: '1px solid rgba(255,255,255,0.06)',
+  },
+  judging: {
+    textAlign: 'center', padding: '14px', color: '#f0c040', fontSize: 16,
+    fontWeight: 700, letterSpacing: 2,
+    background: 'rgba(0,0,0,0.5)', borderTop: '1px solid rgba(240,192,64,0.2)',
+    animation: 'pulse 0.8s ease-in-out infinite',
   },
 };

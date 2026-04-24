@@ -27,6 +27,19 @@ function broadcastState(roomId: string) {
   }
 }
 
+// オールイン時に 1.2 秒ごとにフロップ→ターン→リバー→ショーダウンを順に公開する
+function scheduleRunout(roomId: string) {
+  const game = rooms.get(roomId);
+  if (!game?.isPendingRunout()) return;
+  setTimeout(() => {
+    const g = rooms.get(roomId);
+    if (!g?.isPendingRunout()) return;
+    const result = g.advanceRunout();
+    broadcastState(roomId);
+    if (result === 'continue') scheduleRunout(roomId);
+  }, 1200);
+}
+
 io.on('connection', (socket) => {
   console.log(`接続: ${socket.id}`);
 
@@ -93,6 +106,7 @@ io.on('connection', (socket) => {
     if (!result.success) return callback(false, result.error);
     callback(true);
     broadcastState(roomId);
+    scheduleRunout(roomId);
   });
 
   // 誰でも次のハンドを開始できる（ホスト制限撤廃）

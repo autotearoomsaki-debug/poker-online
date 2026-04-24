@@ -119,6 +119,7 @@ export class PokerGame {
   private winners: Winner[] = [];
   private lastAction: string = '';
   private gameOver: { winnerId: string; winnerName: string } | null = null;
+  private pendingRunout = false;
   private disconnectTimers = new Map<string, ReturnType<typeof setTimeout>>();
 
   constructor(private roomId: string) {
@@ -344,9 +345,11 @@ export class PokerGame {
       this.communityCards.push(this.deck.deal()!);
     else if (this.phase === 'showdown') { this.showdown(); return; }
 
+    // アクティブプレイヤーが1人以下 = 全員オールイン/フォールド
+    // 残りのストリートをサーバー側で段階的に配布するためフラグを立てる
     if (this.players.filter(p => p.status === 'active').length <= 1) {
-      while (this.communityCards.length < 5) this.communityCards.push(this.deck.deal()!);
-      this.showdown(); return;
+      this.pendingRunout = true;
+      return; // index.ts が advanceRunout() を 1.2 秒ごとに呼び出す
     }
     this.currentPlayerIndex = this.nextActiveFrom(this.dealerIndex);
   }
@@ -430,7 +433,33 @@ export class PokerGame {
     return idx;
   }
 
+  isPendingRunout(): boolean { return this.pendingRunout; }
+
+  /**
+   * ルーアウト中に次のストリートを1つ進める。
+   * - 'continue' : まだ残りストリートがある（再度呼び出す）
+   * - 'done'     : ショーダウン完了
+   */
+  advanceRunout(): 'continue' | 'done' {
+    if (!this.pendingRunout) return 'done';
+    const nxt: Partial<Record<GamePhase, GamePhase>> = {
+      flop: 'turn', turn: 'river', river: 'showdown',
+    };
+    this.phase = (nxt[this.phase] ?? 'showdown') as GamePhase;
+
+    if (this.phase === 'turn' || this.phase === 'river') {
+      this.communityCards.push(this.deck.deal()!);
+      return 'continue';
+    }
+
+    // showdown
+    this.pendingRunout = false;
+    this.showdown();
+    return 'done';
+  }
+
   resetForNewHand() {
+    this.pendingRunout = false;
     this.players = this.players.filter(p => p.chips > 0 && p.connected);
     // チップのあるプレイヤーが1人以下 → ゲームオーバー
     if (this.players.length <= 1) {
