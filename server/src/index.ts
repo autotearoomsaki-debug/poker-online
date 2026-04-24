@@ -60,6 +60,7 @@ io.on('connection', (socket) => {
     if (!ok) return callback(false, 'ルームに参加できません（満員またはゲーム中）');
 
     socket.data.playerId = playerId;
+    socket.data.playerName = playerName;
     socket.data.roomId = roomId;
     socket.join(roomId);
     console.log(`${playerName} がルーム ${roomId} に参加`);
@@ -102,8 +103,39 @@ io.on('connection', (socket) => {
     if (game.getPhase() !== 'showdown') return callback(false, 'ショーダウン後のみ有効です');
 
     game.resetForNewHand();
+
+    // ゲームオーバー（チップのあるプレイヤーが1人以下）
+    if (game.isGameOver()) {
+      callback(true);
+      broadcastState(roomId);
+      return;
+    }
+
     const ok = game.startHand();
     if (!ok) return callback(false, 'ゲームを続けられません（チップのある参加者が2人以上必要）');
+    callback(true);
+    broadcastState(roomId);
+  });
+
+  // ゲームをリセットして最初から（全員チップ1000でロビーへ）
+  socket.on('reset-game', (callback: (ok: boolean, err?: string) => void) => {
+    const { roomId } = socket.data;
+    if (!rooms.has(roomId)) return callback(false, 'ルームが見つかりません');
+
+    const newGame = new PokerGame(roomId);
+    rooms.set(roomId, newGame);
+
+    // 接続中の全ソケットを新ゲームに再登録
+    const sockets = io.sockets.adapter.rooms.get(roomId);
+    if (sockets) {
+      for (const sid of sockets) {
+        const s = io.sockets.sockets.get(sid);
+        if (s?.data?.playerId && s?.data?.playerName) {
+          newGame.addPlayer(s.data.playerId as string, s.data.playerName as string);
+        }
+      }
+    }
+
     callback(true);
     broadcastState(roomId);
   });

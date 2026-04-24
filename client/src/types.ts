@@ -32,6 +32,12 @@ export interface Winner {
   potLabel?: string;
 }
 
+export interface DrawInfo {
+  label: string;
+  detail: string;
+  outs: number;
+}
+
 export interface GameState {
   roomId: string;
   players: PublicPlayer[];
@@ -48,4 +54,7 @@ export interface GameState {
   minRaise: number;
   winners: Winner[];
   lastAction: string;
+  myHandDescription?: string;
+  myDraws?: DrawInfo[];
+  gameOver?: { winnerId: string; winnerName: string };
 }

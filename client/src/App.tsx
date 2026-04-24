@@ -58,6 +58,13 @@ export default function App() {
     });
   };
 
+  const handleResetGame = () => {
+    socket.emit('reset-game', (ok: boolean, err?: string) => {
+      if (!ok) setError(err || 'リセットに失敗しました');
+      else setError('');
+    });
+  };
+
   if (!joined) return <Lobby onJoin={handleJoin} error={error} />;
 
   return (
@@ -67,6 +74,7 @@ export default function App() {
       onStartGame={handleStartGame}
       onAction={handleAction}
       onNewHand={handleNewHand}
+      onResetGame={handleResetGame}
       error={error}
     />
   );

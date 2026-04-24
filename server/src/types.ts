@@ -15,7 +15,7 @@ export interface Player {
   chips: number;
   cards: Card[];
   bet: number;
-  totalBet: number;   // ハンド全体の累積ベット額（サイドポット計算用）
+  totalBet: number;
   status: PlayerStatus;
   isDealer: boolean;
   hasActed: boolean;
@@ -29,6 +29,13 @@ export interface Winner {
   hand?: string;
   cards?: Card[];
   potLabel?: string;
+}
+
+/** ドロー情報（サーバーで計算してクライアントに送信） */
+export interface DrawInfo {
+  label: string;   // e.g. 'フラッシュドロー'
+  detail: string;  // e.g. '♠があと1枚でフラッシュ'
+  outs: number;
 }
 
 export interface PublicCard {
@@ -66,4 +73,10 @@ export interface GameState {
   minRaise: number;
   winners: Winner[];
   lastAction: string;
+  /** 受信プレイヤー自身の現在の手役説明 */
+  myHandDescription?: string;
+  /** 受信プレイヤー自身のドロー情報 */
+  myDraws?: DrawInfo[];
+  /** トーナメント終了情報 */
+  gameOver?: { winnerId: string; winnerName: string };
 }
