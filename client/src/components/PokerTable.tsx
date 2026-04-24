@@ -4,7 +4,6 @@ import Card from './Card';
 import PlayerSeat from './PlayerSeat';
 import BettingControls from './BettingControls';
 import HandInfo from './HandInfo';
-import ActionToast from './ActionToast';
 import { HandWinCelebration, GameOverCelebration } from './Celebration';
 
 interface Props {
@@ -154,8 +153,6 @@ export default function PokerTable({ gameState, myId, onStartGame, onAction, onN
         />
       )}
 
-      {/* ── アクショントースト ── */}
-      <ActionToast action={gameState.lastAction} />
 
       {/* ── ヘッダー ── */}
       <div style={styles.header}>
