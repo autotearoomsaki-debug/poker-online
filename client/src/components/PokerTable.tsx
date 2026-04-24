@@ -392,8 +392,8 @@ function Board({ gameState, onStartGame, isHost, mobile = false }: {
 
   const style: React.CSSProperties = mobile
     ? {
-        background: 'rgba(21,101,192,0.4)',
-        border: '2px solid rgba(100,160,255,0.2)',
+        background: 'rgba(30,90,32,0.55)',
+        border: '2px solid rgba(100,200,80,0.18)',
         borderRadius: 14, padding: '10px 14px',
         display: 'flex', flexDirection: 'column', alignItems: 'center', gap: 6,
         height: '100%', justifyContent: 'center',
@@ -478,7 +478,7 @@ const styles: Record<string, React.CSSProperties> = {
   wrapper: {
     height: '100dvh',
     display: 'flex', flexDirection: 'column',
-    background: 'linear-gradient(160deg, #0f1923 0%, #1a2636 50%, #0f1923 100%)',
+    background: 'radial-gradient(ellipse at 50% 20%, #1a2e1a 0%, #0d1a0d 55%, #060e06 100%)',
     overflow: 'hidden',
   },
   loading: {
@@ -508,8 +508,8 @@ const styles: Record<string, React.CSSProperties> = {
     padding: '2px 8px', fontSize: 11, cursor: 'pointer',
   },
   phaseBadge: {
-    background: 'rgba(21,101,192,0.35)', color: '#90caf9',
-    border: '1px solid rgba(144,202,249,0.3)',
+    background: 'rgba(76,175,80,0.22)', color: '#a5d6a7',
+    border: '1px solid rgba(165,214,167,0.35)',
     borderRadius: 6, padding: '3px 10px', fontSize: 12, fontWeight: 700,
   },
   errorBar: {
@@ -532,15 +532,15 @@ const styles: Record<string, React.CSSProperties> = {
     position: 'absolute',
     top: '10%', left: '7%', right: '7%', bottom: '10%',
     borderRadius: '50%',
-    background: 'radial-gradient(ellipse at 50% 40%, #1565c0 0%, #0d47a1 55%, #082d7a 100%)',
-    border: '6px solid #051d52',
-    boxShadow: 'inset 0 0 50px rgba(0,0,0,0.5), 0 8px 40px rgba(0,0,0,0.7)',
+    background: 'radial-gradient(ellipse at 50% 38%, #2e7d32 0%, #1b5e20 55%, #0d3b10 100%)',
+    border: '7px solid #071f08',
+    boxShadow: 'inset 0 0 60px rgba(0,0,0,0.5), 0 10px 50px rgba(0,0,0,0.8), 0 0 0 2px rgba(255,255,255,0.04)',
   },
   myHoleCards: {
     display: 'flex', alignItems: 'center', gap: 14,
     padding: '8px 16px',
-    background: 'rgba(0,0,0,0.5)',
-    borderTop: '1px solid rgba(255,255,255,0.07)',
+    background: 'linear-gradient(180deg, rgba(0,0,0,0.55) 0%, rgba(0,0,0,0.7) 100%)',
+    borderTop: '1px solid rgba(76,175,80,0.15)',
     flexShrink: 0,
   },
   myHandLabel: {
