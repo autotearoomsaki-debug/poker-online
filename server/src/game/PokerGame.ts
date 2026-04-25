@@ -572,9 +572,9 @@ export class PokerGame {
           cards = eligible ? p.cards : p.cards.map(() => ({ hidden: true }));
         } else if (this.phase === 'showdown') {
           const eligible = p.status !== 'folded' && p.status !== 'sitting_out';
-          // フォールドによる勝利: 自分のカードのみ見せる（相手には隠す）
+          // フォールドによる勝利: 全員のカードを全員に非公開
           if (this.wonByFold) {
-            cards = p.id === forPlayerId ? p.cards : p.cards.map(() => ({ hidden: true }));
+            cards = p.cards.map(() => ({ hidden: true }));
           } else {
             cards = eligible ? p.cards : p.cards.map(() => ({ hidden: true }));
             if (eligible && p.cards.length >= 2) {
