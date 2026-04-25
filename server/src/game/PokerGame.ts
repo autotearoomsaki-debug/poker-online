@@ -548,7 +548,9 @@ export class PokerGame {
     this.wonByFold = false;
   }
 
-  getState(forPlayerId?: string): GameState {
+  getCommunityCardCount(): number { return this.communityCards.length; }
+
+  getState(forPlayerId?: string, communityCardsLimit?: number): GameState {
     // ハンド情報（自分のカードがある場合のみ計算）
     let myHandDescription: string | undefined;
     let myDraws: DrawInfo[] | undefined;
@@ -567,9 +569,12 @@ export class PokerGame {
         let cards: PublicCard[];
         let handDescription: string | undefined;
         if (this.pendingRunout) {
-          // オールインランナウト中: フォールドしていない全員のカードを公開
+          // オールインランナウト中: フォールドしていない全員のカードを公開 + 手役も計算
           const eligible = p.status !== 'folded' && p.status !== 'sitting_out';
           cards = eligible ? p.cards : p.cards.map(() => ({ hidden: true }));
+          if (eligible && p.cards.length >= 2 && this.communityCards.length > 0) {
+            handDescription = getMyHandInfo(p.cards, this.communityCards).description;
+          }
         } else if (this.phase === 'showdown') {
           const eligible = p.status !== 'folded' && p.status !== 'sitting_out';
           // フォールドによる勝利: 全員のカードを全員に非公開
@@ -601,7 +606,9 @@ export class PokerGame {
           handDescription, equity,
         };
       }),
-      communityCards: this.communityCards,
+      communityCards: communityCardsLimit !== undefined
+        ? this.communityCards.slice(0, communityCardsLimit)
+        : this.communityCards,
       pot: this.pot, phase: this.phase,
       currentPlayerIndex: this.currentPlayerIndex,
       dealerIndex: this.dealerIndex,
