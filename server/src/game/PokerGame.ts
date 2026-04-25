@@ -120,6 +120,7 @@ export class PokerGame {
   private lastAction: string = '';
   private gameOver: { winnerId: string; winnerName: string } | null = null;
   private pendingRunout = false;
+  private wonByFold = false;
   private equityCache: { boardLen: number; equity: Map<string, number> } | null = null;
   private disconnectTimers = new Map<string, ReturnType<typeof setTimeout>>();
 
@@ -164,7 +165,7 @@ export class PokerGame {
         if (isTurn) this.advanceToNextPlayer();
         onAutoFold();
       }
-    }, 20_000);
+    }, 60_000);
     this.disconnectTimers.set(id, t);
   }
 
@@ -202,7 +203,7 @@ export class PokerGame {
     this.communityCards = []; this.pot = 0;
     this.winners = []; this.lastAction = '';
     this.currentBet = 0; this.minRaise = this.bigBlind;
-    this.gameOver = null;
+    this.gameOver = null; this.wonByFold = false;
 
     this.dealerIndex = this.nextActiveFrom(this.dealerIndex);
     this.players[this.dealerIndex].isDealer = true;
@@ -389,12 +390,14 @@ export class PokerGame {
 
     if (eligible.length === 1) {
       eligible[0].chips += this.pot;
+      this.wonByFold = true;
       this.winners = [{
         playerId: eligible[0].id, playerName: eligible[0].name,
         amount: this.pot, hand: '最後の1人', potLabel: 'ポット',
       }];
       this.pot = 0; return;
     }
+    this.wonByFold = false;
 
     const pots = this.calculatePots(eligible);
     const multi = pots.length > 1;
@@ -542,6 +545,7 @@ export class PokerGame {
       this.phase = 'waiting';
     }
     this.winners = []; this.lastAction = '';
+    this.wonByFold = false;
   }
 
   getState(forPlayerId?: string): GameState {
@@ -562,11 +566,20 @@ export class PokerGame {
       players: this.players.map(p => {
         let cards: PublicCard[];
         let handDescription: string | undefined;
-        if (this.phase === 'showdown') {
+        if (this.pendingRunout) {
+          // オールインランナウト中: フォールドしていない全員のカードを公開
           const eligible = p.status !== 'folded' && p.status !== 'sitting_out';
           cards = eligible ? p.cards : p.cards.map(() => ({ hidden: true }));
-          if (eligible && p.cards.length >= 2) {
-            handDescription = getMyHandInfo(p.cards, this.communityCards).description;
+        } else if (this.phase === 'showdown') {
+          const eligible = p.status !== 'folded' && p.status !== 'sitting_out';
+          // フォールドによる勝利: 自分のカードのみ見せる（相手には隠す）
+          if (this.wonByFold) {
+            cards = p.id === forPlayerId ? p.cards : p.cards.map(() => ({ hidden: true }));
+          } else {
+            cards = eligible ? p.cards : p.cards.map(() => ({ hidden: true }));
+            if (eligible && p.cards.length >= 2) {
+              handDescription = getMyHandInfo(p.cards, this.communityCards).description;
+            }
           }
         } else if (p.id === forPlayerId) {
           cards = p.cards;

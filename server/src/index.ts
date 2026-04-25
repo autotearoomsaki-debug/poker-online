@@ -12,6 +12,8 @@ app.get('/', (_req, res) => res.send('Poker server running'));
 const httpServer = createServer(app);
 const io = new Server(httpServer, {
   cors: { origin: '*', methods: ['GET', 'POST'] },
+  pingTimeout: 60000,
+  pingInterval: 25000,
 });
 
 const rooms = new Map<string, PokerGame>();
@@ -108,11 +110,11 @@ io.on('connection', (socket) => {
     callback(true);
     const phaseAfter = game.getPhase();
     if (phaseBefore !== phaseAfter) {
-      // ベッティングラウンド終了 → 3 秒待ってからカードを公開
+      // ベッティングラウンド終了 → 5 秒待ってからカードを公開
       setTimeout(() => {
         broadcastState(roomId);
         scheduleRunout(roomId);
-      }, 3000);
+      }, 5000);
     } else {
       broadcastState(roomId);
       scheduleRunout(roomId);
