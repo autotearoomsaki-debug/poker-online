@@ -13,6 +13,28 @@ interface Props {
   latestAction?: string;
 }
 
+const CHIP_COLORS = ['#f0c040', '#e17055', '#74b9ff', '#00b894', '#a29bfe', '#fd79a8'];
+
+function MiniChips({ amount, compact }: { amount: number; compact: boolean }) {
+  const size = compact ? 9 : 11;
+  const count = amount >= 500 ? 4 : amount >= 200 ? 3 : amount >= 50 ? 2 : 1;
+  const overlap = Math.round(size * 0.42);
+  return (
+    <div style={{ position: 'relative', width: size + (count - 1) * overlap, height: size, flexShrink: 0 }}>
+      {CHIP_COLORS.slice(0, count).map((color, i) => (
+        <div key={i} style={{
+          position: 'absolute', left: i * overlap,
+          width: size, height: size, borderRadius: '50%',
+          background: `radial-gradient(circle at 35% 30%, ${color}, ${color}99)`,
+          border: '1.5px solid rgba(0,0,0,0.55)',
+          boxShadow: '0 1px 3px rgba(0,0,0,0.5), inset 0 1px 0 rgba(255,255,255,0.25)',
+          zIndex: i,
+        }} />
+      ))}
+    </div>
+  );
+}
+
 const AVATAR_GRADIENTS = [
   ['#6c5ce7', '#a29bfe'],
   ['#e17055', '#fab1a0'],
@@ -193,31 +215,32 @@ export default function PlayerSeat({
       {/* ── カード / アクション ゾーン ── */}
       {!isMe && !hideCards && (
         <div style={{
-          width: '100%', minHeight: compact ? 34 : 40,
+          width: '100%', minHeight: compact ? 46 : 58,
           display: 'flex', alignItems: 'center', justifyContent: 'center',
         }}>
           {action ? (
             /* アクションバッジ（カードの場所に大きく表示） */
             <div style={{
               width: '100%',
-              background: action.bg,
-              border: `1px solid ${action.accent}55`,
-              borderRadius: compact ? 6 : 8,
-              padding: compact ? '4px 6px' : '5px 8px',
+              background: `linear-gradient(160deg, ${action.bg}ee, ${action.bg}cc)`,
+              border: `2px solid ${action.accent}88`,
+              borderRadius: compact ? 8 : 10,
+              padding: compact ? '6px 8px' : '8px 12px',
               display: 'flex', flexDirection: 'column',
-              alignItems: 'center', gap: 1,
-              animation: 'actionBadge 2.5s ease-out both',
-              boxShadow: `0 2px 10px ${action.bg}88`,
+              alignItems: 'center', gap: compact ? 2 : 3,
+              animation: 'actionBadge 5s ease-out both',
+              boxShadow: `0 4px 18px ${action.bg}bb, inset 0 1px 0 ${action.accent}33`,
             }}>
               <span style={{
-                fontSize: compact ? 11 : 12, fontWeight: 900,
-                color: action.accent, letterSpacing: 0.8,
+                fontSize: compact ? 10 : 11, fontWeight: 900,
+                color: action.accent, letterSpacing: 1.5, textTransform: 'uppercase',
               }}>
                 {action.label}
               </span>
               {action.amount && (
                 <span style={{
-                  fontSize: compact ? 12 : 13, fontWeight: 900, color: '#fff',
+                  fontSize: compact ? 19 : 24, fontWeight: 900, color: '#fff',
+                  lineHeight: 1, textShadow: '0 1px 6px rgba(0,0,0,0.6)',
                 }}>
                   ${action.amount}
                 </span>
@@ -251,15 +274,19 @@ export default function PlayerSeat({
         </div>
       )}
 
-      {/* ── ベット表示（カードゾーンの下に表示する場合のみ） ── */}
+      {/* ── ベット表示（チップ絵＋金額） ── */}
       {player.bet > 0 && !action && (
         <div style={{
-          background: 'rgba(116,185,255,0.15)',
-          border: '1px solid rgba(116,185,255,0.4)',
-          borderRadius: 7, padding: '1px 6px',
-          fontSize: 9, color: '#74b9ff', fontWeight: 700,
+          display: 'flex', alignItems: 'center', gap: 4,
+          background: 'rgba(0,0,0,0.6)',
+          border: '1px solid rgba(116,185,255,0.3)',
+          borderRadius: 8, padding: compact ? '2px 5px' : '2px 7px',
+          animation: 'chipPopInline 0.25s cubic-bezier(0.34,1.6,0.64,1) both',
         }}>
-          BET {player.bet.toLocaleString()}
+          <MiniChips amount={player.bet} compact={compact} />
+          <span style={{ color: '#74b9ff', fontSize: compact ? 9 : 10, fontWeight: 800 }}>
+            ${player.bet.toLocaleString()}
+          </span>
         </div>
       )}
     </div>

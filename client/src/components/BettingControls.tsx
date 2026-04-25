@@ -27,14 +27,23 @@ export default function BettingControls({ gameState, me, onAction, isMobile = fa
 
   const clamp = (v: number) => Math.min(Math.max(Math.round(v), minRaiseTotal), maxRaise);
 
-  // プリセット定義（有効なものだけ）
-  const presets = [
-    { label: '½P',  val: Math.round(gameState.pot * 0.5 + gameState.currentBet) },
-    { label: 'P',   val: gameState.pot + gameState.currentBet },
-    { label: '2BB', val: gameState.bigBlind * 2 + gameState.currentBet },
-    { label: '3BB', val: gameState.bigBlind * 3 + gameState.currentBet },
-    { label: '5BB', val: gameState.bigBlind * 5 + gameState.currentBet },
-  ].filter((p, i, arr) => {
+  // ベット（初回）かレイズかで目安を切り替え
+  const isBetSituation = gameState.currentBet === 0;
+
+  const presets = (isBetSituation
+    ? [
+      { label: '¼P', val: Math.round(gameState.pot * 0.25) },
+      { label: '½P', val: Math.round(gameState.pot * 0.5) },
+      { label: '¾P', val: Math.round(gameState.pot * 0.75) },
+      { label: 'Pot', val: gameState.pot },
+    ]
+    : [
+      { label: '2x', val: gameState.currentBet * 2 },
+      { label: '3x', val: gameState.currentBet * 3 },
+      { label: '4x', val: gameState.currentBet * 4 },
+      { label: '½P', val: Math.round(gameState.pot * 0.5 + gameState.currentBet) },
+    ]
+  ).filter((p, i, arr) => {
     const v = p.val;
     return v >= minRaiseTotal && v <= maxRaise - 1 && arr.findIndex(q => q.val === v) === i;
   }).slice(0, 4);
@@ -77,7 +86,7 @@ export default function BettingControls({ gameState, me, onAction, isMobile = fa
               : 'linear-gradient(180deg,#7b1fa2,#6a1b9a)'}
             onClick={() => setShowRaise(v => !v)}
           >
-            <span style={{ fontSize: 12, fontWeight: 900 }}>RAISE</span>
+            <span style={{ fontSize: 12, fontWeight: 900 }}>{isBetSituation ? 'BET' : 'RAISE'}</span>
             <span style={{ fontSize: 11, opacity: 0.75 }}>{showRaise ? '▲' : '▼'}</span>
           </Btn>
         )}
@@ -163,7 +172,7 @@ export default function BettingControls({ gameState, me, onAction, isMobile = fa
             }}
             onClick={() => { onAction('raise', raiseAmt); setShowRaise(false); }}
           >
-            RAISE ${raiseAmt.toLocaleString()}
+            {isBetSituation ? 'BET' : 'RAISE'} ${raiseAmt.toLocaleString()}
           </button>
         </div>
       )}

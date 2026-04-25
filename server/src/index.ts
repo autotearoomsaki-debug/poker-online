@@ -37,7 +37,7 @@ function scheduleRunout(roomId: string) {
     const result = g.advanceRunout();
     broadcastState(roomId);
     if (result === 'continue') scheduleRunout(roomId);
-  }, 2500);
+  }, 5000);
 }
 
 io.on('connection', (socket) => {
@@ -102,11 +102,21 @@ io.on('connection', (socket) => {
     const game = rooms.get(roomId);
     if (!game) return callback(false, 'ルームが見つかりません');
 
+    const phaseBefore = game.getPhase();
     const result = game.handleAction(socket.data.playerId, type, amount);
     if (!result.success) return callback(false, result.error);
     callback(true);
-    broadcastState(roomId);
-    scheduleRunout(roomId);
+    const phaseAfter = game.getPhase();
+    if (phaseBefore !== phaseAfter) {
+      // ベッティングラウンド終了 → 3 秒待ってからカードを公開
+      setTimeout(() => {
+        broadcastState(roomId);
+        scheduleRunout(roomId);
+      }, 3000);
+    } else {
+      broadcastState(roomId);
+      scheduleRunout(roomId);
+    }
   });
 
   // 誰でも次のハンドを開始できる（ホスト制限撤廃）

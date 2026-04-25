@@ -3,8 +3,7 @@ import { GameState } from '../types';
 import Card from './Card';
 import PlayerSeat from './PlayerSeat';
 import BettingControls from './BettingControls';
-import HandInfo from './HandInfo';
-import { HandWinCelebration, GameOverCelebration } from './Celebration';
+import { GameOverCelebration } from './Celebration';
 
 interface Props {
   gameState: GameState | null;
@@ -35,7 +34,6 @@ function getSeatStyle(idx: number, myIdx: number, total: number): React.CSSPrope
 
 export default function PokerTable({ gameState, myId, onStartGame, onAction, onNewHand, onResetGame, error }: Props) {
   const [windowW, setWindowW] = useState(window.innerWidth);
-  const [showCelebration, setShowCelebration] = useState(false);
   const [judging, setJudging] = useState(false);
   const [allInFlash, setAllInFlash] = useState(false);
   // プレイヤーごとのアクション表示 {playerId → actionText}
@@ -51,11 +49,10 @@ export default function PokerTable({ gameState, myId, onStartGame, onAction, onN
   useEffect(() => {
     if (gameState?.phase === 'showdown') {
       setJudging(true);
-      const t = setTimeout(() => { setJudging(false); setShowCelebration(true); }, 1000);
+      const t = setTimeout(() => setJudging(false), 1000);
       return () => clearTimeout(t);
     } else {
       setJudging(false);
-      setShowCelebration(false);
     }
   }, [gameState?.phase, gameState?.winners]);
 
@@ -83,7 +80,7 @@ export default function PokerTable({ gameState, myId, onStartGame, onAction, onN
     setPlayerActions(prev => ({ ...prev, [id]: core }));
     const t = setTimeout(() => setPlayerActions(prev => {
       const n = { ...prev }; delete n[id]; return n;
-    }), 2500);
+    }), 5000);
     return () => clearTimeout(t);
   }, [gameState?.lastAction]);
 
@@ -114,8 +111,8 @@ export default function PokerTable({ gameState, myId, onStartGame, onAction, onN
     me?.status === 'active';
   const isHost = gameState.players[0]?.id === myId;
 
-  const handleNext = () => { setShowCelebration(false); onNewHand(); };
-  const handleReset = () => { setShowCelebration(false); onResetGame(); };
+  const handleNext = () => onNewHand();
+  const handleReset = () => onResetGame();
 
   return (
     <div style={styles.wrapper}>
@@ -139,30 +136,21 @@ export default function PokerTable({ gameState, myId, onStartGame, onAction, onN
         </div>
       )}
 
-      {/* ── 優勝演出 ── */}
-      {showCelebration && gameState.gameOver && (
+      {/* ── ゲームオーバー演出 ── */}
+      {!judging && gameState.gameOver && (
         <GameOverCelebration winnerName={gameState.gameOver.winnerName} isMe={gameState.gameOver.winnerId === myId} onReset={handleReset} />
-      )}
-      {showCelebration && !gameState.gameOver && gameState.winners.length > 0 && (
-        <HandWinCelebration
-          winners={gameState.winners}
-          myId={myId}
-          onNext={handleNext}
-          pot={gameState.pot}
-          allPlayers={gameState.players}
-        />
       )}
 
 
       {/* ── ヘッダー ── */}
       <div style={styles.header}>
-        <div style={{ display: 'flex', alignItems: 'center', gap: 8 }}>
-          <span style={{ color: '#888', fontSize: 11 }}>ROOM</span>
+        <div style={{ display: 'flex', alignItems: 'center', gap: 6 }}>
+          <span style={{ color: '#888', fontSize: 10 }}>ROOM</span>
           <strong style={styles.roomId}>{gameState.roomId}</strong>
           <button onClick={copyRoomId} style={styles.copyBtn}>{copied ? '✓' : 'コピー'}</button>
         </div>
         <div style={styles.phaseBadge}>{PHASE_LABEL[gameState.phase]}</div>
-        <div style={{ fontSize: 12, color: '#888' }}>{gameState.players.length}人参加中</div>
+        {!isMobile && <div style={{ fontSize: 12, color: '#888' }}>{gameState.players.length}人参加中</div>}
       </div>
 
       {error && <div style={styles.errorBar}>{error}</div>}
@@ -170,37 +158,54 @@ export default function PokerTable({ gameState, myId, onStartGame, onAction, onN
       {/* ── テーブル ── */}
       <div style={styles.tableSection}>
         {isMobile
-          ? <MobileLayout gameState={gameState} myId={myId} myIdx={myIdx} onStartGame={onStartGame} isHost={isHost} playerActions={playerActions} />
-          : <OvalLayout gameState={gameState} myId={myId} myIdx={myIdx} onStartGame={onStartGame} isHost={isHost} playerActions={playerActions} />
+          ? <MobileLayout gameState={gameState} myId={myId} myIdx={myIdx} onStartGame={onStartGame} isHost={isHost} playerActions={playerActions} onNewHand={handleNext} judging={judging} />
+          : <OvalLayout gameState={gameState} myId={myId} myIdx={myIdx} onStartGame={onStartGame} isHost={isHost} playerActions={playerActions} onNewHand={handleNext} judging={judging} />
         }
       </div>
 
       {/* ── 自分のホールカード ── */}
       {me && me.cards.length > 0 && gameState.phase !== 'waiting' && (
-        <div style={styles.myHoleCards}>
-          <div style={{ display: 'flex', gap: isMobile ? 8 : 10, alignItems: 'center' }}>
-            {me.cards.map((c, i) => <Card key={i} card={c} animationDelay={i * 150} />)}
+        <div style={{
+          ...styles.myHoleCards,
+          padding: isMobile ? '4px 12px' : '8px 16px',
+        }}>
+          <div style={{ display: 'flex', gap: isMobile ? 6 : 10, alignItems: 'center' }}>
+            {me.cards.map((c, i) => (
+              <Card key={i} card={c} small={isMobile} animationDelay={i * 150} />
+            ))}
           </div>
-          {me.status !== 'folded' && gameState.myHandDescription && gameState.phase !== 'showdown' && (
-            <div style={styles.myHandLabel}>
-              <div style={{ color: '#888', fontSize: 10, fontWeight: 600, textTransform: 'uppercase', letterSpacing: 0.5 }}>
-                {PHASE_LABEL[gameState.phase]}
-              </div>
-              <div style={{ color: '#f0c040', fontWeight: 800, fontSize: 15 }}>
-                {gameState.myHandDescription}
-              </div>
+          {me.status !== 'folded' && gameState.phase !== 'showdown' && (
+            <div style={{ display: 'flex', flexDirection: 'column', gap: 3 }}>
+              {/* 手役名 */}
+              {gameState.myHandDescription && (
+                <span style={{
+                  color: '#f0c040', fontWeight: 800,
+                  fontSize: isMobile ? 11 : 13,
+                }}>
+                  {gameState.myHandDescription}
+                </span>
+              )}
+              {/* ドロー小タグ */}
+              {gameState.myDraws && gameState.myDraws.length > 0 && (
+                <div style={{ display: 'flex', gap: 4, flexWrap: 'wrap' }}>
+                  {gameState.myDraws.slice(0, 2).map((d, i) => (
+                    <span key={i} style={{
+                      fontSize: isMobile ? 9 : 10,
+                      padding: '1px 5px', borderRadius: 4,
+                      border: '1px solid rgba(255,255,255,0.2)',
+                      color: '#90a4ae', fontWeight: 600,
+                      background: 'rgba(255,255,255,0.05)',
+                      whiteSpace: 'nowrap',
+                    }}>
+                      {d.label}
+                    </span>
+                  ))}
+                </div>
+              )}
             </div>
           )}
         </div>
       )}
-
-      {/* ── ドロー情報 ── */}
-      {me && me.status !== 'folded' && (
-        <HandInfo handDescription={undefined} draws={gameState.myDraws} phase={gameState.phase} />
-      )}
-
-      {/* ── 判定中 ── */}
-      {judging && <div style={styles.judging}>判定中...</div>}
 
       {/* ── ベット操作 ── */}
       {isMyTurn && me && (
@@ -213,17 +218,69 @@ export default function PokerTable({ gameState, myId, onStartGame, onAction, onN
   );
 }
 
+// ─── チップビジュアル ──────────────────────────────────
+
+const CHIP_COLORS = ['#f0c040', '#e17055', '#74b9ff', '#00b894', '#a29bfe', '#fd79a8'];
+
+function ChipPile({ amount, size = 12 }: { amount: number; size?: number }) {
+  const count = amount >= 1000 ? 6 : amount >= 500 ? 5 : amount >= 200 ? 4 : amount >= 100 ? 3 : amount >= 30 ? 2 : 1;
+  const overlap = Math.round(size * 0.45);
+  return (
+    <div style={{ position: 'relative', width: size + (count - 1) * overlap, height: size, flexShrink: 0 }}>
+      {CHIP_COLORS.slice(0, count).map((color, i) => (
+        <div key={i} style={{
+          position: 'absolute', left: i * overlap,
+          width: size, height: size, borderRadius: '50%',
+          background: `radial-gradient(circle at 35% 30%, ${color}, ${color}99)`,
+          border: `${size >= 14 ? 2 : 1.5}px solid rgba(0,0,0,0.5)`,
+          boxShadow: `0 1px 4px rgba(0,0,0,0.6), inset 0 1px 0 rgba(255,255,255,0.3)`,
+          zIndex: i,
+        }} />
+      ))}
+    </div>
+  );
+}
+
 // ─── 楕円レイアウト ───────────────────────────────────
 
-function OvalLayout({ gameState, myId, myIdx, onStartGame, isHost, playerActions }: {
+function OvalLayout({ gameState, myId, myIdx, onStartGame, isHost, playerActions, onNewHand, judging }: {
   gameState: GameState; myId: string; myIdx: number;
   onStartGame: () => void; isHost: boolean;
   playerActions: Record<string, string>;
+  onNewHand: () => void; judging: boolean;
 }) {
+  const total = gameState.players.length;
   return (
     <div style={styles.tableWrapper}>
       <div style={styles.tableOval}>
-        <Board gameState={gameState} onStartGame={onStartGame} isHost={isHost} />
+        {/* ── テーブル上のチップパイル ── */}
+        {gameState.phase !== 'waiting' && gameState.players.map((player, idx) => {
+          if (player.bet <= 0) return null;
+          const offset = ((idx - myIdx + total) % total) / total;
+          const angle = Math.PI / 2 + offset * 2 * Math.PI;
+          const chipX = 50 + 26 * Math.cos(angle);
+          const chipY = 50 + 23 * Math.sin(angle);
+          return (
+            <div key={player.id} style={{
+              position: 'absolute',
+              left: `${chipX}%`, top: `${chipY}%`,
+              transform: 'translate(-50%, -50%)',
+              display: 'flex', flexDirection: 'column', alignItems: 'center', gap: 2,
+              zIndex: 2, pointerEvents: 'none',
+              animation: 'chipPop 0.3s cubic-bezier(0.34,1.6,0.64,1) both',
+            }}>
+              <ChipPile amount={player.bet} size={14} />
+              <span style={{
+                fontSize: 9, fontWeight: 800, color: '#74b9ff',
+                background: 'rgba(0,0,0,0.7)', borderRadius: 4, padding: '1px 4px',
+                letterSpacing: 0.2,
+              }}>
+                ${player.bet.toLocaleString()}
+              </span>
+            </div>
+          );
+        })}
+        <Board gameState={gameState} onStartGame={onStartGame} isHost={isHost} onNewHand={onNewHand} judging={judging} myId={myId} />
       </div>
       {gameState.players.map((player, idx) => (
         <div key={player.id} style={getSeatStyle(idx, myIdx, gameState.players.length)}>
@@ -245,10 +302,11 @@ function OvalLayout({ gameState, myId, myIdx, onStartGame, isHost, playerActions
 
 // ─── モバイルレイアウト ───────────────────────────────
 
-function MobileLayout({ gameState, myId, myIdx, onStartGame, isHost, playerActions }: {
+function MobileLayout({ gameState, myId, myIdx, onStartGame, isHost, playerActions, onNewHand, judging }: {
   gameState: GameState; myId: string; myIdx: number;
   onStartGame: () => void; isHost: boolean;
   playerActions: Record<string, string>;
+  onNewHand: () => void; judging: boolean;
 }) {
   const others = gameState.players.filter(p => p.id !== myId);
   const me = gameState.players[myIdx];
@@ -274,7 +332,7 @@ function MobileLayout({ gameState, myId, myIdx, onStartGame, isHost, playerActio
         })}
       </div>
       <div style={{ flex: 1, minHeight: 0 }}>
-        <Board gameState={gameState} onStartGame={onStartGame} isHost={isHost} mobile />
+        <Board gameState={gameState} onStartGame={onStartGame} isHost={isHost} mobile onNewHand={onNewHand} judging={judging} myId={myId} />
       </div>
       {me && (
         <div style={{ display: 'flex', justifyContent: 'center', flexShrink: 0 }}>
@@ -343,10 +401,133 @@ function EquityPanel({ players, mobile }: { players: GameState['players']; mobil
   );
 }
 
+// ─── ショーダウン結果パネル ──────────────────────────
+
+function ShowdownPanel({ gameState, onNewHand, myId, mobile }: {
+  gameState: GameState; onNewHand: () => void; myId: string; mobile: boolean;
+}) {
+  const winnerIds = new Set(gameState.winners.map(w => w.playerId));
+  const eligible = gameState.players.filter(p => p.status !== 'sitting_out');
+
+  return (
+    <div style={{
+      display: 'flex', flexDirection: 'column', alignItems: 'center',
+      gap: mobile ? 6 : 8,
+      animation: 'celebrationIn 0.45s ease-out',
+      width: '100%',
+      maxWidth: mobile ? 340 : 480,
+    }}>
+      <div style={{ fontSize: mobile ? 10 : 11, fontWeight: 900, color: '#f0c040', letterSpacing: 2 }}>
+        SHOWDOWN
+      </div>
+
+      <div style={{
+        display: 'flex', flexWrap: 'wrap', gap: mobile ? 5 : 8,
+        justifyContent: 'center', width: '100%',
+      }}>
+        {eligible.map(player => {
+          const isWinner = winnerIds.has(player.id);
+          const isFolded = player.status === 'folded';
+          const winner = gameState.winners.find(w => w.playerId === player.id);
+          const isMe = player.id === myId;
+
+          return (
+            <div key={player.id} style={{
+              background: isWinner
+                ? 'rgba(240,192,64,0.15)'
+                : isFolded ? 'rgba(0,0,0,0.3)' : 'rgba(0,0,0,0.45)',
+              border: isWinner
+                ? '1.5px solid rgba(240,192,64,0.55)'
+                : '1px solid rgba(255,255,255,0.1)',
+              borderRadius: mobile ? 8 : 10,
+              padding: mobile ? '5px 8px' : '7px 12px',
+              display: 'flex', flexDirection: 'column',
+              alignItems: 'center', gap: mobile ? 3 : 4,
+              minWidth: mobile ? 72 : 90,
+              opacity: isFolded ? 0.55 : 1,
+              boxShadow: isWinner ? '0 0 14px rgba(240,192,64,0.2)' : undefined,
+            }}>
+              <div style={{
+                fontSize: mobile ? 9 : 10, fontWeight: 700,
+                color: isMe ? '#74b9ff' : '#ddd',
+                maxWidth: mobile ? 70 : 86,
+                overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap',
+              }}>
+                {player.name}
+              </div>
+
+              {/* ホールカード */}
+              {!isFolded && player.cards.filter(c => !c.hidden).length > 0 ? (
+                <div style={{ display: 'flex', gap: mobile ? 2 : 3 }}>
+                  {player.cards.map((c, i) => (
+                    <Card key={i} card={c} small animationDelay={i * 100} />
+                  ))}
+                </div>
+              ) : isFolded ? (
+                <div style={{ display: 'flex', gap: 2 }}>
+                  {[0, 1].map(i => (
+                    <div key={i} style={{
+                      width: mobile ? 18 : 22, height: mobile ? 26 : 32,
+                      borderRadius: 3, opacity: 0.3,
+                      background: 'linear-gradient(135deg,#1e3799,#0c2461)',
+                      border: '1px solid rgba(255,255,255,0.12)',
+                    }} />
+                  ))}
+                </div>
+              ) : null}
+
+              {/* ハンド説明 */}
+              {player.handDescription && !isFolded && (
+                <div style={{
+                  fontSize: mobile ? 8 : 9, fontWeight: 800, textAlign: 'center',
+                  color: isWinner ? '#f0c040' : '#aaa',
+                  maxWidth: mobile ? 70 : 86,
+                  overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap',
+                }}>
+                  {player.handDescription}
+                </div>
+              )}
+
+              {/* 結果バッジ */}
+              <div style={{
+                fontSize: mobile ? 8 : 9, fontWeight: 900, letterSpacing: 0.8,
+                padding: '1px 6px', borderRadius: 4,
+                background: isWinner
+                  ? 'rgba(240,192,64,0.25)'
+                  : isFolded ? 'rgba(120,120,120,0.2)' : 'rgba(200,50,50,0.2)',
+                color: isWinner ? '#f0c040' : isFolded ? '#888' : '#ef5350',
+              }}>
+                {isWinner
+                  ? `WIN +$${winner?.amount.toLocaleString()}`
+                  : isFolded ? 'FOLD' : 'LOSE'}
+              </div>
+            </div>
+          );
+        })}
+      </div>
+
+      <button
+        onClick={onNewHand}
+        style={{
+          background: 'linear-gradient(135deg,#f0c040,#e8a020)',
+          color: '#1a1a2e', border: 'none', borderRadius: 8,
+          padding: mobile ? '7px 18px' : '9px 22px',
+          fontSize: mobile ? 12 : 13, fontWeight: 800, cursor: 'pointer',
+          boxShadow: '0 3px 14px rgba(240,192,64,0.4)',
+          animation: 'pulse 1.5s ease-in-out infinite',
+        }}
+      >
+        次のハンド →
+      </button>
+    </div>
+  );
+}
+
 // ─── ボード ───────────────────────────────────────────
 
-function Board({ gameState, onStartGame, isHost, mobile = false }: {
+function Board({ gameState, onStartGame, isHost, mobile = false, onNewHand, judging, myId }: {
   gameState: GameState; onStartGame: () => void; isHost: boolean; mobile?: boolean;
+  onNewHand?: () => void; judging?: boolean; myId?: string;
 }) {
   // フロップは3枚一気に届くので、クライアント側で1枚ずつ演出する
   const [shownCount, setShownCount] = useState(0);
@@ -377,10 +558,10 @@ function Board({ gameState, onStartGame, isHost, mobile = false }: {
     if (diff <= 0) { setShownCount(target); return; }
     if (diff === 1) { setShownCount(target); return; } // ターン・リバーは即時
 
-    // フロップ（3枚）: 750ms ずつ段階的に表示
+    // フロップ（3枚）: 1200ms ずつ段階的に表示
     const timers: ReturnType<typeof setTimeout>[] = [];
     for (let i = 0; i < diff; i++) {
-      timers.push(setTimeout(() => setShownCount(prev + i + 1), i * 750));
+      timers.push(setTimeout(() => setShownCount(prev + i + 1), i * 1200));
     }
     return () => timers.forEach(clearTimeout);
   }, [gameState.communityCards.length]);
@@ -405,12 +586,16 @@ function Board({ gameState, onStartGame, isHost, mobile = false }: {
     <div style={style}>
       {gameState.phase !== 'waiting' && (
         <div style={{
-          color: '#fff', fontWeight: 800, fontSize: mobile ? 13 : 15,
+          display: 'flex', alignItems: 'center', gap: mobile ? 6 : 8,
           background: 'rgba(0,0,0,0.5)',
-          borderRadius: 20, padding: '3px 14px',
+          borderRadius: 20, padding: mobile ? '4px 12px' : '4px 16px',
           border: '1px solid rgba(255,255,255,0.12)',
         }}>
-          POT <span style={{ color: '#f0c040' }}>${gameState.pot.toLocaleString()}</span>
+          {gameState.pot > 0 && <ChipPile amount={gameState.pot} size={mobile ? 12 : 16} />}
+          <span style={{ color: '#fff', fontWeight: 800, fontSize: mobile ? 12 : 14 }}>
+            POT <span style={{ color: '#f0c040' }}>${gameState.pot.toLocaleString()}</span>
+          </span>
+          {gameState.pot > 0 && <ChipPile amount={gameState.pot} size={mobile ? 12 : 16} />}
         </div>
       )}
 
@@ -440,8 +625,22 @@ function Board({ gameState, onStartGame, isHost, mobile = false }: {
       </div>
 
       {/* ── オールイン勝率パネル ── */}
-      {gameState.players.some(p => p.equity !== undefined) && (
+      {gameState.players.some(p => p.equity !== undefined) && gameState.phase !== 'showdown' && (
         <EquityPanel players={gameState.players} mobile={mobile} />
+      )}
+
+      {/* ── 判定中 ── */}
+      {judging && (
+        <div style={{
+          fontSize: mobile ? 13 : 15, fontWeight: 900, color: '#f0c040',
+          letterSpacing: 2, animation: 'pulse 0.8s ease-in-out infinite',
+          background: 'rgba(0,0,0,0.5)', borderRadius: 8, padding: '6px 18px',
+        }}>判定中...</div>
+      )}
+
+      {/* ── ショーダウン結果 ── */}
+      {gameState.phase === 'showdown' && !judging && !gameState.gameOver && onNewHand && (
+        <ShowdownPanel gameState={gameState} onNewHand={onNewHand} myId={myId || ''} mobile={mobile} />
       )}
 
       {gameState.phase === 'waiting' && (
@@ -491,13 +690,13 @@ const styles: Record<string, React.CSSProperties> = {
   },
   header: {
     display: 'flex', justifyContent: 'space-between', alignItems: 'center',
-    padding: '6px 14px',
+    padding: '4px 12px',
     background: 'rgba(0,0,0,0.55)',
     borderBottom: '1px solid rgba(255,255,255,0.07)',
-    flexWrap: 'wrap', gap: 4,
+    flexWrap: 'nowrap', gap: 8,
     flexShrink: 0,
   },
-  roomId: { color: '#f0c040', fontSize: 20, letterSpacing: 4, fontWeight: 900 },
+  roomId: { color: '#f0c040', fontSize: 18, letterSpacing: 3, fontWeight: 900 },
   copyBtn: {
     background: 'rgba(240,192,64,0.12)',
     border: '1px solid rgba(240,192,64,0.35)',
