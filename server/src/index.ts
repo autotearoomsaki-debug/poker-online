@@ -18,14 +18,14 @@ const io = new Server(httpServer, {
 
 const rooms = new Map<string, PokerGame>();
 
-function broadcastState(roomId: string) {
+function broadcastState(roomId: string, communityCardsLimit?: number) {
   const game = rooms.get(roomId);
   if (!game) return;
   const sockets = io.sockets.adapter.rooms.get(roomId);
   if (!sockets) return;
   for (const sid of sockets) {
     const s = io.sockets.sockets.get(sid);
-    if (s) s.emit('game-state', game.getState(s.data.playerId as string));
+    if (s) s.emit('game-state', game.getState(s.data.playerId as string, communityCardsLimit));
   }
 }
 
@@ -39,7 +39,7 @@ function scheduleRunout(roomId: string) {
     const result = g.advanceRunout();
     broadcastState(roomId);
     if (result === 'continue') scheduleRunout(roomId);
-  }, 5000);
+  }, 1200);
 }
 
 io.on('connection', (socket) => {
@@ -105,16 +105,19 @@ io.on('connection', (socket) => {
     if (!game) return callback(false, 'ルームが見つかりません');
 
     const phaseBefore = game.getPhase();
+    const cardsBefore = game.getCommunityCardCount();
     const result = game.handleAction(socket.data.playerId, type, amount);
     if (!result.success) return callback(false, result.error);
     callback(true);
     const phaseAfter = game.getPhase();
     if (phaseBefore !== phaseAfter) {
-      // ベッティングラウンド終了 → 5 秒待ってからカードを公開
+      // アクション結果を即座に表示（新カードはまだ隠す）
+      broadcastState(roomId, cardsBefore);
+      // 3秒後に新カードを公開
       setTimeout(() => {
         broadcastState(roomId);
         scheduleRunout(roomId);
-      }, 5000);
+      }, 3000);
     } else {
       broadcastState(roomId);
       scheduleRunout(roomId);

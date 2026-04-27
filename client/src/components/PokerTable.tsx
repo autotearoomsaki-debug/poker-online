@@ -20,6 +20,18 @@ const PHASE_LABEL: Record<string, string> = {
   turn: 'ターン', river: 'リバー', showdown: 'ショーダウン',
 };
 
+// テーブルカラーパレット [中心, 中間, 外縁, モバイル枠色]
+const TABLE_PALETTES = [
+  ['#2e7d32', '#1b5e20', '#0d3b10', 'rgba(100,200,80,0.18)'],   // 緑（デフォルト）
+  ['#1565c0', '#0d47a1', '#072a6b', 'rgba(80,160,255,0.18)'],   // ブルー
+  ['#6a1b9a', '#4a148c', '#2a0a52', 'rgba(180,80,255,0.18)'],   // パープル
+  ['#b71c1c', '#7f0000', '#4a0000', 'rgba(255,80,80,0.18)'],    // レッド
+  ['#00695c', '#004d40', '#00251a', 'rgba(80,220,190,0.18)'],   // ティール
+  ['#e65100', '#bf360c', '#7a1a00', 'rgba(255,160,80,0.18)'],   // オレンジ
+  ['#263238', '#1c2a30', '#0d1519', 'rgba(150,200,220,0.18)'],  // ダークブルーグレー
+  ['#37474f', '#1c2f38', '#0a1520', 'rgba(100,180,220,0.18)'],  // スレート
+];
+
 function getSeatStyle(idx: number, myIdx: number, total: number): React.CSSProperties {
   const offset = ((idx - myIdx + total) % total) / total;
   const angle = Math.PI / 2 + offset * 2 * Math.PI;
@@ -38,6 +50,15 @@ export default function PokerTable({ gameState, myId, onStartGame, onAction, onN
   const [allInFlash, setAllInFlash] = useState(false);
   // プレイヤーごとのアクション表示 {playerId → actionText}
   const [playerActions, setPlayerActions] = useState<Record<string, string>>({});
+  // フロップ公開完了まで手役表示を遅らせる
+  const [displayedHandDesc, setDisplayedHandDesc] = useState(gameState?.myHandDescription);
+  const [displayedDraws, setDisplayedDraws] = useState(gameState?.myDraws);
+  // 画面に実際に表示されているカード枚数（アニメーション進行に合わせる）
+  const [visibleCardCount, setVisibleCardCount] = useState(gameState?.communityCards.length ?? 0);
+  const prevCommunityLen = useRef(gameState?.communityCards.length ?? 0);
+  // ラウンドごとにテーブルカラーを変更
+  const [tablePaletteIdx, setTablePaletteIdx] = useState(0);
+  const prevDealerIdx = useRef(gameState?.dealerIndex ?? -1);
 
   useEffect(() => {
     const h = () => setWindowW(window.innerWidth);
@@ -83,6 +104,24 @@ export default function PokerTable({ gameState, myId, onStartGame, onAction, onN
     }), 5000);
     return () => clearTimeout(t);
   }, [gameState?.lastAction]);
+
+  // ディーラーが変わったら（＝新ハンド）テーブルカラーをランダムに変更
+  useEffect(() => {
+    const d = gameState?.dealerIndex ?? -1;
+    if (d !== prevDealerIdx.current && gameState?.phase === 'preflop') {
+      setTablePaletteIdx(Math.floor(Math.random() * TABLE_PALETTES.length));
+    }
+    prevDealerIdx.current = d;
+  }, [gameState?.dealerIndex, gameState?.phase]);
+
+  // コミュニティカードが更新されたら即時反映（手役・勝率も同時更新）
+  useEffect(() => {
+    const currLen = gameState?.communityCards.length ?? 0;
+    prevCommunityLen.current = currLen;
+    setVisibleCardCount(currLen);
+    setDisplayedHandDesc(gameState?.myHandDescription);
+    setDisplayedDraws(gameState?.myDraws);
+  }, [gameState?.communityCards.length, gameState?.myHandDescription]);
 
   const [copied, setCopied] = useState(false);
   const copyRoomId = () => {
@@ -158,8 +197,8 @@ export default function PokerTable({ gameState, myId, onStartGame, onAction, onN
       {/* ── テーブル ── */}
       <div style={styles.tableSection}>
         {isMobile
-          ? <MobileLayout gameState={gameState} myId={myId} myIdx={myIdx} onStartGame={onStartGame} isHost={isHost} playerActions={playerActions} onNewHand={handleNext} judging={judging} />
-          : <OvalLayout gameState={gameState} myId={myId} myIdx={myIdx} onStartGame={onStartGame} isHost={isHost} playerActions={playerActions} onNewHand={handleNext} judging={judging} />
+          ? <MobileLayout gameState={gameState} myId={myId} myIdx={myIdx} onStartGame={onStartGame} isHost={isHost} playerActions={playerActions} onNewHand={handleNext} judging={judging} palette={TABLE_PALETTES[tablePaletteIdx]} visibleCardCount={visibleCardCount} />
+          : <OvalLayout gameState={gameState} myId={myId} myIdx={myIdx} onStartGame={onStartGame} isHost={isHost} playerActions={playerActions} onNewHand={handleNext} judging={judging} palette={TABLE_PALETTES[tablePaletteIdx]} visibleCardCount={visibleCardCount} />
         }
       </div>
 
@@ -177,18 +216,18 @@ export default function PokerTable({ gameState, myId, onStartGame, onAction, onN
           {me.status !== 'folded' && gameState.phase !== 'showdown' && (
             <div style={{ display: 'flex', flexDirection: 'column', gap: 3 }}>
               {/* 手役名 */}
-              {gameState.myHandDescription && (
+              {displayedHandDesc && (
                 <span style={{
                   color: '#f0c040', fontWeight: 800,
                   fontSize: isMobile ? 11 : 13,
                 }}>
-                  {gameState.myHandDescription}
+                  {displayedHandDesc}
                 </span>
               )}
               {/* ドロー小タグ */}
-              {gameState.myDraws && gameState.myDraws.length > 0 && (
+              {displayedDraws && displayedDraws.length > 0 && (
                 <div style={{ display: 'flex', gap: 4, flexWrap: 'wrap' }}>
-                  {gameState.myDraws.slice(0, 2).map((d, i) => (
+                  {displayedDraws.slice(0, 2).map((d, i) => (
                     <span key={i} style={{
                       fontSize: isMobile ? 9 : 10,
                       padding: '1px 5px', borderRadius: 4,
@@ -243,16 +282,21 @@ function ChipPile({ amount, size = 12 }: { amount: number; size?: number }) {
 
 // ─── 楕円レイアウト ───────────────────────────────────
 
-function OvalLayout({ gameState, myId, myIdx, onStartGame, isHost, playerActions, onNewHand, judging }: {
+function OvalLayout({ gameState, myId, myIdx, onStartGame, isHost, playerActions, onNewHand, judging, palette, visibleCardCount }: {
   gameState: GameState; myId: string; myIdx: number;
   onStartGame: () => void; isHost: boolean;
   playerActions: Record<string, string>;
-  onNewHand: () => void; judging: boolean;
+  onNewHand: () => void; judging: boolean; palette: string[]; visibleCardCount: number;
 }) {
   const total = gameState.players.length;
+  const [c1, c2, c3] = palette;
   return (
     <div style={styles.tableWrapper}>
-      <div style={styles.tableOval}>
+      <div style={{
+        ...styles.tableOval,
+        background: `radial-gradient(ellipse at 50% 38%, ${c1} 0%, ${c2} 55%, ${c3} 100%)`,
+        transition: 'background 1s ease',
+      }}>
         {/* ── テーブル上のチップパイル ── */}
         {gameState.phase !== 'waiting' && gameState.players.map((player, idx) => {
           if (player.bet <= 0) return null;
@@ -280,33 +324,37 @@ function OvalLayout({ gameState, myId, myIdx, onStartGame, isHost, playerActions
             </div>
           );
         })}
-        <Board gameState={gameState} onStartGame={onStartGame} isHost={isHost} onNewHand={onNewHand} judging={judging} myId={myId} />
+        <Board gameState={gameState} onStartGame={onStartGame} isHost={isHost} onNewHand={onNewHand} judging={judging} myId={myId} palette={palette} visibleCardCount={visibleCardCount} />
       </div>
-      {gameState.players.map((player, idx) => (
-        <div key={player.id} style={getSeatStyle(idx, myIdx, gameState.players.length)}>
-          <PlayerSeat
-            player={player}
-            isCurrentPlayer={gameState.phase !== 'waiting' && gameState.phase !== 'showdown' && idx === gameState.currentPlayerIndex}
-            isMe={player.id === myId}
-            isDealer={idx === gameState.dealerIndex}
-            isSB={gameState.phase !== 'waiting' && idx === gameState.smallBlindIndex}
-            isBB={gameState.phase !== 'waiting' && idx === gameState.bigBlindIndex}
-            hideCards={player.id === myId}
-            latestAction={playerActions[player.id]}
-          />
-        </div>
-      ))}
+      {gameState.players.map((player, idx) => {
+        // equity は AllInPanel で表示するので PlayerSeat では非表示
+        const maskedPlayer = { ...player, equity: undefined };
+        return (
+          <div key={player.id} style={getSeatStyle(idx, myIdx, gameState.players.length)}>
+            <PlayerSeat
+              player={maskedPlayer}
+              isCurrentPlayer={gameState.phase !== 'waiting' && gameState.phase !== 'showdown' && idx === gameState.currentPlayerIndex}
+              isMe={player.id === myId}
+              isDealer={idx === gameState.dealerIndex}
+              isSB={gameState.phase !== 'waiting' && idx === gameState.smallBlindIndex}
+              isBB={gameState.phase !== 'waiting' && idx === gameState.bigBlindIndex}
+              hideCards={player.id === myId}
+              latestAction={playerActions[player.id]}
+            />
+          </div>
+        );
+      })}
     </div>
   );
 }
 
 // ─── モバイルレイアウト ───────────────────────────────
 
-function MobileLayout({ gameState, myId, myIdx, onStartGame, isHost, playerActions, onNewHand, judging }: {
+function MobileLayout({ gameState, myId, myIdx, onStartGame, isHost, playerActions, onNewHand, judging, palette, visibleCardCount }: {
   gameState: GameState; myId: string; myIdx: number;
   onStartGame: () => void; isHost: boolean;
   playerActions: Record<string, string>;
-  onNewHand: () => void; judging: boolean;
+  onNewHand: () => void; judging: boolean; palette: string[]; visibleCardCount: number;
 }) {
   const others = gameState.players.filter(p => p.id !== myId);
   const me = gameState.players[myIdx];
@@ -332,7 +380,7 @@ function MobileLayout({ gameState, myId, myIdx, onStartGame, isHost, playerActio
         })}
       </div>
       <div style={{ flex: 1, minHeight: 0 }}>
-        <Board gameState={gameState} onStartGame={onStartGame} isHost={isHost} mobile onNewHand={onNewHand} judging={judging} myId={myId} />
+        <Board gameState={gameState} onStartGame={onStartGame} isHost={isHost} mobile onNewHand={onNewHand} judging={judging} myId={myId} palette={palette} visibleCardCount={visibleCardCount} />
       </div>
       {me && (
         <div style={{ display: 'flex', justifyContent: 'center', flexShrink: 0 }}>
@@ -352,51 +400,96 @@ function MobileLayout({ gameState, myId, myIdx, onStartGame, isHost, playerActio
   );
 }
 
-// ─── 勝率パネル ──────────────────────────────────────
+// ─── オールインパネル ─────────────────────────────────
 
-function EquityPanel({ players, mobile }: { players: GameState['players']; mobile: boolean }) {
-  const eligible = players.filter(p => p.equity !== undefined);
+const PLAYER_COLORS = ['#e17055', '#00b894', '#74b9ff', '#a29bfe', '#fd79a8', '#f0c040'];
+
+function AllInPanel({ players, mobile, myId }: {
+  players: GameState['players']; mobile: boolean; myId: string;
+}) {
+  const eligible = players.filter(p => p.equity !== undefined && p.status !== 'folded' && p.status !== 'sitting_out');
   if (eligible.length < 2) return null;
+
+  const totalEquity = eligible.reduce((s, p) => s + (p.equity ?? 0), 0) || 100;
 
   return (
     <div style={{
-      background: 'rgba(0,0,0,0.55)',
-      border: '1px solid rgba(240,192,64,0.25)',
-      borderRadius: 10,
-      padding: mobile ? '5px 10px' : '6px 14px',
-      display: 'flex', flexDirection: 'column', gap: 3,
-      minWidth: mobile ? 180 : 220,
-      animation: 'celebrationIn 0.3s ease-out',
+      width: '100%',
+      background: 'rgba(0,0,0,0.6)',
+      border: '1px solid rgba(255,255,255,0.1)',
+      borderRadius: mobile ? 12 : 14,
+      padding: mobile ? '8px 10px' : '10px 14px',
+      display: 'flex', flexDirection: 'column', gap: mobile ? 7 : 9,
+      animation: 'celebrationIn 0.35s ease-out',
     }}>
-      <div style={{ textAlign: 'center', fontSize: 9, fontWeight: 900, color: '#f0c040', letterSpacing: 1, marginBottom: 1 }}>
-        WIN PROBABILITY
-      </div>
-      {eligible.map(p => (
-        <div key={p.id} style={{ display: 'flex', alignItems: 'center', gap: 6 }}>
-          <span style={{ fontSize: 10, fontWeight: 700, color: '#ddd', minWidth: 50, textAlign: 'right', overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>
+
+      {/* プレイヤー名 */}
+      <div style={{ display: 'flex', justifyContent: 'space-between' }}>
+        {eligible.map((p, i) => (
+          <span key={p.id} style={{
+            fontSize: mobile ? 10 : 11, fontWeight: 800,
+            color: p.id === myId ? '#74b9ff' : '#dfe6e9',
+            textAlign: i % 2 === 0 ? 'left' : 'right',
+            flex: 1,
+            overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap',
+          }}>
             {p.name}
           </span>
-          <div style={{ flex: 1, height: 6, borderRadius: 3, background: 'rgba(255,255,255,0.1)', overflow: 'hidden' }}>
-            <div style={{
-              height: '100%',
-              width: `${p.equity}%`,
-              background: (p.equity ?? 0) >= 60
-                ? 'linear-gradient(90deg,#00e676,#00b894)'
-                : (p.equity ?? 0) >= 35
-                  ? 'linear-gradient(90deg,#f0c040,#e8a020)'
-                  : 'linear-gradient(90deg,#ef5350,#b71c1c)',
-              borderRadius: 3,
-              transition: 'width 1s ease',
-            }} />
-          </div>
-          <span style={{
-            fontSize: 12, fontWeight: 900, minWidth: 30, textAlign: 'left',
-            color: (p.equity ?? 0) >= 60 ? '#00e676' : (p.equity ?? 0) >= 35 ? '#f0c040' : '#ef5350',
-          }}>
-            {p.equity}%
-          </span>
-        </div>
-      ))}
+        ))}
+      </div>
+
+      {/* 勝率スプリットバー */}
+      <div style={{ display: 'flex', height: mobile ? 28 : 32, borderRadius: 20, overflow: 'hidden', gap: 2 }}>
+        {eligible.map((p, i) => {
+          const pct = ((p.equity ?? 0) / totalEquity) * 100;
+          const color = PLAYER_COLORS[i % PLAYER_COLORS.length];
+          return (
+            <div key={p.id} style={{
+              flex: pct, background: color,
+              display: 'flex', alignItems: 'center',
+              justifyContent: eligible.length === 2 && i === 0 ? 'flex-start' : 'flex-end',
+              padding: '0 10px',
+              minWidth: 36,
+              transition: 'flex 1s ease',
+            }}>
+              <span style={{ fontSize: mobile ? 13 : 15, fontWeight: 900, color: '#fff', textShadow: '0 1px 4px rgba(0,0,0,0.5)' }}>
+                {p.equity}%
+              </span>
+            </div>
+          );
+        })}
+      </div>
+
+      {/* ハンド名 + カード */}
+      <div style={{ display: 'flex', justifyContent: 'space-between', gap: 8 }}>
+        {eligible.map((p, i) => {
+          const color = PLAYER_COLORS[i % PLAYER_COLORS.length];
+          const visibleCards = p.cards.filter(c => !c.hidden);
+          const align = eligible.length === 2 ? (i === 0 ? 'flex-start' : 'flex-end') : 'center';
+          return (
+            <div key={p.id} style={{
+              flex: 1, display: 'flex', flexDirection: 'column',
+              alignItems: align, gap: 4,
+            }}>
+              {p.handDescription && (
+                <span style={{
+                  fontSize: mobile ? 9 : 10, fontWeight: 800,
+                  color, letterSpacing: 0.5,
+                }}>
+                  {p.handDescription}
+                </span>
+              )}
+              {visibleCards.length > 0 && (
+                <div style={{ display: 'flex', gap: mobile ? 3 : 4 }}>
+                  {visibleCards.map((c, j) => (
+                    <Card key={j} card={c} small={mobile} animationDelay={j * 80} />
+                  ))}
+                </div>
+              )}
+            </div>
+          );
+        })}
+      </div>
     </div>
   );
 }
@@ -525,56 +618,21 @@ function ShowdownPanel({ gameState, onNewHand, myId, mobile }: {
 
 // ─── ボード ───────────────────────────────────────────
 
-function Board({ gameState, onStartGame, isHost, mobile = false, onNewHand, judging, myId }: {
+function Board({ gameState, onStartGame, isHost, mobile = false, onNewHand, judging, myId, palette, visibleCardCount = 0 }: {
   gameState: GameState; onStartGame: () => void; isHost: boolean; mobile?: boolean;
-  onNewHand?: () => void; judging?: boolean; myId?: string;
+  onNewHand?: () => void; judging?: boolean; myId?: string; palette?: string[]; visibleCardCount?: number;
 }) {
-  // フロップは3枚一気に届くので、クライアント側で1枚ずつ演出する
-  const [shownCount, setShownCount] = useState(0);
-  const prevLen = useRef(0);
-  const isFirstRender = useRef(true);
-
-  useEffect(() => {
-    const target = gameState.communityCards.length;
-
-    if (target === 0) {
-      setShownCount(0);
-      prevLen.current = 0;
-      isFirstRender.current = false;
-      return;
-    }
-
-    // 参加直後（既存の状態）は即時表示
-    if (isFirstRender.current) {
-      setShownCount(target);
-      prevLen.current = target;
-      isFirstRender.current = false;
-      return;
-    }
-
-    const prev = prevLen.current;
-    prevLen.current = target;
-    const diff = target - prev;
-    if (diff <= 0) { setShownCount(target); return; }
-    if (diff === 1) { setShownCount(target); return; } // ターン・リバーは即時
-
-    // フロップ（3枚）: 1200ms ずつ段階的に表示
-    const timers: ReturnType<typeof setTimeout>[] = [];
-    for (let i = 0; i < diff; i++) {
-      timers.push(setTimeout(() => setShownCount(prev + i + 1), i * 1200));
-    }
-    return () => timers.forEach(clearTimeout);
-  }, [gameState.communityCards.length]);
-
-  const visibleCards = gameState.communityCards.slice(0, shownCount);
+  const [c1, c2, c3, border] = palette ?? ['#2e7d32', '#1b5e20', '#0d3b10', 'rgba(100,200,80,0.18)'];
+  const visibleCards = gameState.communityCards.slice(0, visibleCardCount);
 
   const style: React.CSSProperties = mobile
     ? {
-        background: 'rgba(30,90,32,0.55)',
-        border: '2px solid rgba(100,200,80,0.18)',
+        background: `radial-gradient(ellipse at 50% 40%, ${c1}99 0%, ${c2}88 60%, ${c3}99 100%)`,
+        border: `2px solid ${border}`,
         borderRadius: 14, padding: '10px 14px',
         display: 'flex', flexDirection: 'column', alignItems: 'center', gap: 6,
         height: '100%', justifyContent: 'center',
+        transition: 'background 1s ease, border-color 1s ease',
       }
     : {
         position: 'absolute', top: '50%', left: '50%',
@@ -611,8 +669,8 @@ function Board({ gameState, onStartGame, isHost, mobile = false, onNewHand, judg
             </p>
         }
         {/* まだ表示されていないカードのプレースホルダー */}
-        {gameState.communityCards.length > shownCount && (
-          Array.from({ length: gameState.communityCards.length - shownCount }, (_, i) => (
+        {gameState.communityCards.length > visibleCardCount && (
+          Array.from({ length: gameState.communityCards.length - visibleCardCount }, (_, i) => (
             <div key={`ph-${i}`} style={{
               width: mobile ? 38 : 56, height: mobile ? 52 : 78,
               borderRadius: mobile ? 5 : 8,
@@ -624,9 +682,9 @@ function Board({ gameState, onStartGame, isHost, mobile = false, onNewHand, judg
         )}
       </div>
 
-      {/* ── オールイン勝率パネル ── */}
+      {/* ── オールインパネル（カード＋勝率） ── */}
       {gameState.players.some(p => p.equity !== undefined) && gameState.phase !== 'showdown' && (
-        <EquityPanel players={gameState.players} mobile={mobile} />
+        <AllInPanel players={gameState.players} mobile={mobile} myId={myId ?? ''} />
       )}
 
       {/* ── 判定中 ── */}
